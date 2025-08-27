@@ -19,7 +19,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/mp_color_primary_variant"
+    android:background="@android:color/darker_gray"
     tools:context=".fragment.Model3DFragment">
 
     <!-- Header -->
@@ -81,7 +81,7 @@
                 android:text="Upload 3D Model"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="@color/mp_color_primary" />
+                android:textColor="@android:color/black" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_upload_3d"
@@ -133,7 +133,7 @@
                 android:text="Model Status"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="@color/mp_color_primary" />
+                android:textColor="@android:color/black" />
 
             <TextView
                 android:id="@+id/text_model_status"
@@ -182,7 +182,7 @@
                 android:text="Controls"
                 android:textSize="18sp"
                 android:textStyle="bold"
-                android:textColor="@color/mp_color_primary" />
+                android:textColor="@android:color/black" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_toggle_3d"
