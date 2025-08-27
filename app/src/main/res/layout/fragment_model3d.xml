@@ -96,8 +96,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:hint="Custom Name (optional)"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+                android:hint="Custom Name (optional)">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/edit_custom_name"
@@ -109,7 +108,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_test_cube"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -201,7 +200,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_toggle_3d"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
@@ -212,7 +211,7 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/button_clear_model"
-                style="@style/Widget.Material3.Button.OutlinedButton"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
