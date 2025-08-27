@@ -1,8 +1,16 @@
-# 3D Model Loading Test Guide
+# 3D Model Face Replacement Test Guide
 
-## 🔍 **Comprehensive Debugging Added**
+## ✨ **NEW: Face Mesh Replacement Mode**
 
-I've added extensive logging and a direct test mechanism to help identify exactly where the 3D model loading is failing.
+The 3D model now **replaces** the face landmarks/mesh instead of overlaying on top of it. This provides a cleaner, more immersive experience where your selected 3D model becomes your virtual face.
+
+## 🎯 **Key Improvements**
+
+1. **Face Mesh Replacement**: 3D model completely replaces face landmarks when active
+2. **Automatic Scaling**: Model automatically scales to match your detected face size
+3. **Precise Positioning**: Model aligns exactly with your face landmarks and head pose
+4. **Smart Fallback**: Falls back to face mesh if 3D rendering fails
+5. **Debug Mode**: Shows both face mesh and 3D model for comparison
 
 ## 🧪 **Test Steps**
 
@@ -15,7 +23,12 @@ I've added extensive logging and a direct test mechanism to help identify exactl
    CameraFragment: Test cube loaded directly: 8 vertices
    CameraFragment: Test cube set in overlay
    ```
-4. **Look for wireframe cube** on your face
+4. **Look for wireframe cube** that **replaces** your face (no face dots/lines should be visible)
+
+### **Step 1.5: Test Debug Mode**
+1. **Triple-tap the overlay area** (3 quick taps)
+2. **Should see both face mesh AND 3D model** together for comparison
+3. **Triple-tap again** to return to replacement mode
 
 ### **Step 2: Test Library Model Selection**
 1. **Go to Library tab**
@@ -44,15 +57,18 @@ I've added extensive logging and a direct test mechanism to help identify exactl
    CameraFragment: Setting 3D model with [X] vertices
    ```
 
-### **Step 5: Test Overlay Rendering**
+### **Step 5: Test Face Replacement Rendering**
 1. **With face detected and model selected**
 2. **Check logs** for:
    ```
-   OverlayView: Rendering 3D model - show3DModel: true, hasModel: true
+   OverlayView: Rendering 3D model instead of face mesh - show3DModel: true, hasModel: true
    OverlayView: Head pose calculated: center=Vertex3D(...), direction=Vertex3D(...)
+   OverlayView: Face dimensions: width=[X], height=[Y]
+   Model3DRenderer: Face parameters updated: width=[X], height=[Y], scale=[Z]
    Model3DRenderer: Rendering model with [X] vertices, [Y] faces
    Model3DRenderer: Wireframe rendering completed
    ```
+3. **Visual Check**: No face landmarks/connectors should be visible, only the 3D model
 
 ## 📊 **Expected Log Sequence (Complete Flow)**
 
@@ -67,11 +83,13 @@ When everything works correctly:
 6. CameraFragment: Current 3D Model: 1024 vertices, 512 faces
 7. CameraFragment: Face detection results: 1 faces detected
 8. CameraFragment: Setting 3D model with 1024 vertices
-9. OverlayView: Rendering 3D model - show3DModel: true, hasModel: true
+9. OverlayView: Rendering 3D model instead of face mesh - show3DModel: true, hasModel: true
 10. OverlayView: Head pose calculated: center=Vertex3D(...), direction=Vertex3D(...)
-11. Model3DRenderer: Rendering model with 1024 vertices, 512 faces
-12. Model3DRenderer: Projected 1024 vertices
-13. Model3DRenderer: Wireframe rendering completed
+11. OverlayView: Face dimensions: width=245.6, height=312.8
+12. Model3DRenderer: Face parameters updated: width=245.6, height=312.8, scale=1.2
+13. Model3DRenderer: Rendering model with 1024 vertices, 512 faces
+14. Model3DRenderer: Projected 1024 vertices
+15. Model3DRenderer: Wireframe rendering completed
 ```
 
 ## 🚨 **Common Failure Points**
@@ -100,7 +118,11 @@ When everything works correctly:
 
 ### **Force Test (Bypass Library)**
 - **Long-press camera preview** → Loads test cube directly
-- **Should show wireframe cube** if rendering pipeline works
+- **Should show wireframe cube that replaces face mesh** if rendering pipeline works
+
+### **Debug Mode Test**
+- **Triple-tap overlay** → Shows both face mesh and 3D model
+- **Useful for verifying alignment and scaling**
 
 ### **Debug ViewModel State**
 - **Navigate to Camera tab** → Check logs for ViewModel state

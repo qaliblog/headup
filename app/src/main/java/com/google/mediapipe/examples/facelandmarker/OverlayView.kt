@@ -19,6 +19,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.Log
 import android.view.View
@@ -45,6 +46,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     private val model3DRenderer = Model3DRenderer()
     private val headDirectionCalculator = HeadDirectionCalculator()
     private var show3DModel = false
+    private var debugMode = false // Show both face mesh AND 3D model for testing
 
     init {
         initPaints()
@@ -95,32 +97,80 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
 
             // Iterate through each detected face
             faceLandmarkerResult.faceLandmarks().forEach { faceLandmarks ->
-                // Draw all landmarks for the current face
-                drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
-
-                // Draw all connectors for the current face
-                drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
                 
-                // Calculate and render 3D model if available
+                // Calculate face dimensions for proper 3D model scaling
+                val faceBounds = calculateFaceBounds(faceLandmarks)
+                val faceWidth = faceBounds.width() * scaleFactor
+                val faceHeight = faceBounds.height() * scaleFactor
+                
+                // Choose rendering mode: 3D model replacement, debug mode, or face landmarks/mesh
                 if (show3DModel && model3DRenderer.hasModel()) {
+                    // 3D Model Mode: Replace face mesh with 3D model (or show both in debug mode)
                     try {
-                        Log.d("OverlayView", "Rendering 3D model - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                        val modeText = if (debugMode) "with face mesh (debug)" else "instead of face mesh"
+                        Log.d("OverlayView", "Rendering 3D model $modeText - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                        
+                        // Show face mesh in debug mode or as fallback
+                        if (debugMode) {
+                            drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                            drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                        }
+                        
+                        // Update renderer with face parameters for proper scaling and positioning
+                        model3DRenderer.updateFaceParameters(faceWidth, faceHeight, scaleFactor, offsetX, offsetY)
+                        
                         val headPose = headDirectionCalculator.calculateHeadPose(faceLandmarkerResult)
                         headPose?.let { pose ->
                             Log.d("OverlayView", "Head pose calculated: center=${pose.center}, direction=${pose.direction}")
+                            Log.d("OverlayView", "Face dimensions: width=$faceWidth, height=$faceHeight")
                             model3DRenderer.updateHeadPose(pose)
                             model3DRenderer.render(canvas, pointPaint)
                         } ?: run {
-                            Log.w("OverlayView", "Could not calculate head pose")
+                            Log.w("OverlayView", "Could not calculate head pose, falling back to face mesh")
+                            // Fallback to face mesh if head pose calculation fails and not already showing
+                            if (!debugMode) {
+                                drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                                drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                            }
                         }
                     } catch (e: Exception) {
-                        Log.e("OverlayView", "Error rendering 3D model", e)
+                        Log.e("OverlayView", "Error rendering 3D model, falling back to face mesh", e)
+                        // Fallback to face mesh if 3D rendering fails and not already showing
+                        if (!debugMode) {
+                            drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                            drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                        }
                     }
                 } else {
-                    Log.d("OverlayView", "Not rendering 3D model - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                    // Face Mesh Mode: Draw traditional face landmarks and connectors
+                    Log.d("OverlayView", "Rendering face mesh - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                    drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                    drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
                 }
             }
         }
+    }
+
+    /**
+     * Calculate the bounding box of the face landmarks
+     */
+    private fun calculateFaceBounds(faceLandmarks: List<NormalizedLandmark>): RectF {
+        var minX = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = Float.MIN_VALUE
+        
+        faceLandmarks.forEach { landmark ->
+            val x = landmark.x() * imageWidth
+            val y = landmark.y() * imageHeight
+            
+            minX = minOf(minX, x)
+            maxX = maxOf(maxX, x)
+            minY = minOf(minY, y)
+            maxY = maxOf(maxY, y)
+        }
+        
+        return RectF(minX, minY, maxX, maxY)
     }
 
     /**
@@ -216,6 +266,18 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
      */
     fun hide3DModel() {
         show3DModel = false
+        invalidate()
+    }
+    
+    fun toggleDebugMode() {
+        debugMode = !debugMode
+        Log.d("OverlayView", "Debug mode ${if (debugMode) "enabled" else "disabled"}")
+        invalidate()
+    }
+    
+    fun setDebugMode(enabled: Boolean) {
+        debugMode = enabled
+        Log.d("OverlayView", "Debug mode ${if (debugMode) "enabled" else "disabled"}")
         invalidate()
     }
 

@@ -33,6 +33,13 @@ class Model3DRenderer {
     private var viewportWidth = 1
     private var viewportHeight = 1
     
+    // Face-based scaling parameters
+    private var faceWidth = 1f
+    private var faceHeight = 1f
+    private var scaleFactor = 1f
+    private var offsetX = 0f
+    private var offsetY = 0f
+    
     // Camera parameters for projection
     private val focalLength = 1000f
     private val principalPointX = 0.5f
@@ -51,6 +58,24 @@ class Model3DRenderer {
      */
     fun updateHeadPose(headPose: HeadPose) {
         currentHeadPose = headPose
+    }
+    
+    /**
+     * Update rendering parameters based on face landmarks and screen coordinates
+     */
+    fun updateFaceParameters(
+        faceWidth: Float, 
+        faceHeight: Float, 
+        scaleFactor: Float, 
+        offsetX: Float, 
+        offsetY: Float
+    ) {
+        this.faceWidth = faceWidth
+        this.faceHeight = faceHeight
+        this.scaleFactor = scaleFactor
+        this.offsetX = offsetX
+        this.offsetY = offsetY
+        Log.d(TAG, "Face parameters updated: width=$faceWidth, height=$faceHeight, scale=$scaleFactor")
     }
     
     /**
@@ -104,9 +129,12 @@ class Model3DRenderer {
         // Get the base transformation matrix from head pose
         val baseMatrix = headPose.getTransformationMatrix()
         
-        // Apply additional scaling and positioning for overlay
-        val scale = 0.2f // Adjust this to change model size
-        val offsetY = -0.15f // Offset to position above head
+        // Calculate face-based scaling - model should fit the detected face size
+        val faceBasedScale = max(faceWidth, faceHeight) * 0.8f // Scale to 80% of face size
+        val scale = if (faceBasedScale > 0.01f) faceBasedScale else 0.2f // Fallback to fixed scale
+        
+        // No offset - position model directly at face center
+        val offsetY = 0f
         
         // Create final transformation matrix
         val matrix = FloatArray(16)
@@ -136,16 +164,12 @@ class Model3DRenderer {
     }
     
     private fun projectVertex(vertex: Vertex3D): PointF {
-        // Simple perspective projection
-        val z = maxOf(vertex.z, 0.1f) // Avoid division by zero
+        // Use face-based coordinate system to align with MediaPipe coordinates
+        // MediaPipe coordinates are normalized (0-1), so we use the same system
         
-        // Project to normalized device coordinates
-        val x = (vertex.x * focalLength / z + principalPointX)
-        val y = (vertex.y * focalLength / z + principalPointY)
-        
-        // Convert to screen coordinates
-        val screenX = x * viewportWidth
-        val screenY = y * viewportHeight
+        // Apply scale factor and offsets from OverlayView
+        val screenX = (vertex.x * viewportWidth * scaleFactor) + offsetX
+        val screenY = (vertex.y * viewportHeight * scaleFactor) + offsetY
         
         return PointF(screenX, screenY)
     }

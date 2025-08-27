@@ -177,6 +177,23 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
             loadTestCubeDirectly()
             true
         }
+        
+        // TEMPORARY: Triple-tap to toggle debug mode (show face mesh + 3D model)
+        var tapCount = 0
+        var lastTapTime = 0L
+        fragmentCameraBinding.overlay.setOnClickListener {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastTapTime < 300) { // 300ms between taps
+                tapCount++
+                if (tapCount >= 3) {
+                    fragmentCameraBinding.overlay.toggleDebugMode()
+                    tapCount = 0
+                }
+            } else {
+                tapCount = 1
+            }
+            lastTapTime = currentTime
+        }
     }
     
     private fun loadTestCubeDirectly() {
