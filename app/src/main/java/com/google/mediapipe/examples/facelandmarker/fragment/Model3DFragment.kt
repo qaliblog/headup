@@ -142,7 +142,7 @@ class Model3DFragment : Fragment() {
             
             when (fileExtension) {
                 "obj" -> {
-                    // Read OBJ file content
+                    // Read OBJ file content as text
                     val content = fileUploadHelper.readFileContent(uri)
                     if (content != null) {
                         val model = model3DParser.parseOBJ(content)
@@ -156,14 +156,33 @@ class Model3DFragment : Fragment() {
                             false
                         }
                     } else {
-                        Log.w(TAG, "Failed to read file content")
+                        Log.w(TAG, "Failed to read OBJ file content")
+                        false
+                    }
+                }
+                "glb" -> {
+                    // Read GLB file content as binary
+                    val bytes = fileUploadHelper.readFileBytes(uri)
+                    if (bytes != null) {
+                        val model = model3DParser.parseGLB(bytes)
+                        if (model != null) {
+                            withContext(Dispatchers.Main) {
+                                viewModel.set3DModel(model)
+                            }
+                            true
+                        } else {
+                            Log.w(TAG, "Failed to parse GLB file")
+                            false
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to read GLB file content")
                         false
                     }
                 }
                 else -> {
                     Log.w(TAG, "Unsupported file format: $fileExtension")
-                    // For now, only OBJ files are supported
-                    // Future: Add support for other formats
+                    // Supported formats: OBJ, GLB
+                    // Future: Add support for other formats (FBX, PLY, STL, etc.)
                     false
                 }
             }

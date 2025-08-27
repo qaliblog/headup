@@ -14,8 +14,12 @@ This is an enhanced camera app that detects face landmarks and overlays 3D objec
 
 ### Supported 3D File Formats
 
-- OBJ (Wavefront OBJ) - Currently implemented
-- FBX, PLY, STL, 3DS, DAE, BLEND, GLTF, GLB - Supported formats (future implementation)
+#### ✅ **Currently Implemented**
+- **OBJ (Wavefront OBJ)** - Text-based format with full vertex and face support
+- **GLB (Binary GLTF)** - Modern binary format with mesh, vertex, and index support
+
+#### 🔄 **Future Implementation**
+- FBX, PLY, STL, 3DS, DAE, BLEND, GLTF - Framework ready for implementation
 
 The task file is downloaded by a Gradle script when you build and run the app. You don't need to do any additional steps to download task files into the project explicitly unless you wish to use your own landmark detection task.
 

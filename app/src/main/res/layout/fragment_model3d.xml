@@ -47,7 +47,7 @@
         android:layout_marginStart="16dp"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="16dp"
-        android:text="Upload a 3D model to overlay on detected faces. Supported formats: OBJ, FBX, PLY, STL, 3DS, DAE, BLEND, GLTF, GLB"
+        android:text="Upload a 3D model to overlay on detected faces. Currently supported: OBJ, GLB. Future: FBX, PLY, STL, 3DS, DAE, BLEND, GLTF"
         android:textAlignment="center"
         android:textColor="@android:color/white"
         android:textSize="14sp"

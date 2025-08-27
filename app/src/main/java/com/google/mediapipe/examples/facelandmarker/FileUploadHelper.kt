@@ -154,6 +154,20 @@ class FileUploadHelper(
     }
     
     /**
+     * Read file content as byte array (useful for binary formats like GLB)
+     */
+    fun readFileBytes(uri: Uri): ByteArray? {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                inputStream.readBytes()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file bytes", e)
+            null
+        }
+    }
+    
+    /**
      * Get file size in bytes
      */
     fun getFileSize(uri: Uri): Long {
