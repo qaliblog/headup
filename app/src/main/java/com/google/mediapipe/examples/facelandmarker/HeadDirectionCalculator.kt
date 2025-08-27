@@ -16,6 +16,7 @@
 package com.google.mediapipe.examples.facelandmarker
 
 import android.util.Log
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 import kotlin.math.*
 
@@ -138,7 +139,7 @@ class HeadDirectionCalculator {
         }
     }
     
-    private fun calculateHeadCenter(landmarks: List<com.google.mediapipe.framework.formats.landmark.NormalizedLandmark>): Vertex3D {
+    private fun calculateHeadCenter(landmarks: List<NormalizedLandmark>): Vertex3D {
         var sumX = 0f
         var sumY = 0f
         var sumZ = 0f
@@ -163,7 +164,7 @@ class HeadDirectionCalculator {
         }
     }
     
-    private fun calculateRotationAngles(landmarks: List<com.google.mediapipe.framework.formats.landmark.NormalizedLandmark>): Triple<Float, Float, Float> {
+    private fun calculateRotationAngles(landmarks: List<NormalizedLandmark>): Triple<Float, Float, Float> {
         return try {
             // Get key landmarks for angle calculation
             val leftEye = if (LEFT_EYE_INNER < landmarks.size) landmarks[LEFT_EYE_INNER] else null
