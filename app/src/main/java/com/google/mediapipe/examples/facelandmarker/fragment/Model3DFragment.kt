@@ -46,6 +46,7 @@ class Model3DFragment : Fragment() {
 
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var fileUploadHelper: FileUploadHelper
+    private lateinit var modelStorageManager: ModelStorageManager
     private val model3DParser = Model3DParser()
 
     // Coroutine scope for background processing
@@ -63,12 +64,14 @@ class Model3DFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Initialize file upload helper
+        // Initialize file upload helper and storage manager
         fileUploadHelper = FileUploadHelper(
             context = requireContext(),
             fragment = this,
             onFileSelected = { uri, fileName -> onFileSelected(uri, fileName) }
         )
+        
+        modelStorageManager = ModelStorageManager(requireContext())
 
         // Set up UI event listeners
         setupUI()
@@ -95,6 +98,12 @@ class Model3DFragment : Fragment() {
             Navigation.findNavController(requireView())
                 .navigate(R.id.action_model3d_to_camera)
         }
+        
+        // Navigation to model library (will add this button to layout)
+        // fragmentModel3dBinding.buttonViewLibrary.setOnClickListener {
+        //     Navigation.findNavController(requireView())
+        //         .navigate(R.id.action_model3d_to_library)
+        // }
 
         // Clear model button
         fragmentModel3dBinding.buttonClearModel.setOnClickListener {
@@ -111,23 +120,32 @@ class Model3DFragment : Fragment() {
         fragmentModel3dBinding.textModelStatus.text = "Processing file: $fileName"
         fragmentModel3dBinding.progressBar.visibility = View.VISIBLE
         
+        // Get custom name from input field
+        val customName = fragmentModel3dBinding.editCustomName.text.toString().trim()
+        
         // Process file in background
         fragmentScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) {
-                    processModelFile(uri, fileName)
+                val (success, model3D) = withContext(Dispatchers.IO) {
+                    processAndStoreModelFile(uri, fileName, customName)
                 }
                 
-                if (result) {
-                    fragmentModel3dBinding.textModelStatus.text = "Model loaded: $fileName"
-                    Toast.makeText(requireContext(), "3D model loaded successfully!", Toast.LENGTH_SHORT).show()
+                if (success && model3D != null) {
+                    fragmentModel3dBinding.textModelStatus.text = "Model stored and loaded: ${customName.ifBlank { fileName }}"
+                    Toast.makeText(requireContext(), "3D model stored successfully!", Toast.LENGTH_SHORT).show()
+                    
+                    // Clear the custom name field for next upload
+                    fragmentModel3dBinding.editCustomName.text?.clear()
+                    
+                    // Set as active model
+                    viewModel.set3DModel(model3D)
                 } else {
-                    fragmentModel3dBinding.textModelStatus.text = "Failed to load model"
-                    Toast.makeText(requireContext(), "Failed to load 3D model", Toast.LENGTH_SHORT).show()
+                    fragmentModel3dBinding.textModelStatus.text = "Failed to process model"
+                    Toast.makeText(requireContext(), "Failed to process 3D model", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing model file", e)
-                fragmentModel3dBinding.textModelStatus.text = "Error loading model"
+                fragmentModel3dBinding.textModelStatus.text = "Error processing model"
                 Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 fragmentModel3dBinding.progressBar.visibility = View.GONE
@@ -136,59 +154,63 @@ class Model3DFragment : Fragment() {
         }
     }
 
-    private suspend fun processModelFile(uri: Uri, fileName: String): Boolean {
+    private suspend fun processAndStoreModelFile(uri: Uri, fileName: String, customName: String): Pair<Boolean, Model3D?> {
         return try {
             val fileExtension = fileName.substringAfterLast('.', "").lowercase()
             
-            when (fileExtension) {
+            val model3D = when (fileExtension) {
                 "obj" -> {
                     // Read OBJ file content as text
                     val content = fileUploadHelper.readFileContent(uri)
                     if (content != null) {
-                        val model = model3DParser.parseOBJ(content)
-                        if (model != null) {
-                            withContext(Dispatchers.Main) {
-                                viewModel.set3DModel(model)
-                            }
-                            true
-                        } else {
-                            Log.w(TAG, "Failed to parse OBJ file")
-                            false
-                        }
+                        model3DParser.parseOBJ(content)
                     } else {
                         Log.w(TAG, "Failed to read OBJ file content")
-                        false
+                        null
                     }
                 }
                 "glb" -> {
                     // Read GLB file content as binary
                     val bytes = fileUploadHelper.readFileBytes(uri)
                     if (bytes != null) {
-                        val model = model3DParser.parseGLB(bytes)
-                        if (model != null) {
-                            withContext(Dispatchers.Main) {
-                                viewModel.set3DModel(model)
-                            }
-                            true
-                        } else {
-                            Log.w(TAG, "Failed to parse GLB file")
-                            false
-                        }
+                        model3DParser.parseGLB(bytes)
                     } else {
                         Log.w(TAG, "Failed to read GLB file content")
-                        false
+                        null
                     }
                 }
                 else -> {
                     Log.w(TAG, "Unsupported file format: $fileExtension")
-                    // Supported formats: OBJ, GLB
-                    // Future: Add support for other formats (FBX, PLY, STL, etc.)
-                    false
+                    null
                 }
             }
+            
+            if (model3D != null) {
+                // Store the model
+                val storedModel = modelStorageManager.storeModel(
+                    uri = uri,
+                    originalFileName = fileName,
+                    fileFormat = fileExtension,
+                    model3D = model3D,
+                    customName = customName
+                )
+                
+                if (storedModel != null) {
+                    // Set as active model in storage
+                    modelStorageManager.setActiveModel(storedModel.id)
+                    Log.d(TAG, "Model stored successfully: ${storedModel.getDisplayName()}")
+                    Pair(true, model3D)
+                } else {
+                    Log.w(TAG, "Failed to store model")
+                    Pair(false, null)
+                }
+            } else {
+                Log.w(TAG, "Failed to parse model file")
+                Pair(false, null)
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing model file", e)
-            false
+            Log.e(TAG, "Error processing and storing model file", e)
+            Pair(false, null)
         }
     }
 

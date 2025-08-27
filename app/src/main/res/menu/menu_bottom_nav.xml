@@ -27,6 +27,11 @@
         
     <item
         android:id="@id/model3d_fragment"
-        android:icon="@android:drawable/ic_menu_preferences"
-        android:title="3D Models" />
+        android:icon="@android:drawable/ic_menu_upload"
+        android:title="Upload" />
+        
+    <item
+        android:id="@id/model_library_fragment"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:title="Library" />
 </menu>
