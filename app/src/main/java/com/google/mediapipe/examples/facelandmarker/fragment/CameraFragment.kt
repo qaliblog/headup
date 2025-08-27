@@ -409,6 +409,19 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
                     resultBundle.inputImageWidth,
                     RunningMode.LIVE_STREAM
                 )
+                
+                // Update 3D model if available
+                viewModel.get3DModel()?.let { model ->
+                    if (!fragmentCameraBinding.overlay.is3DModelVisible()) {
+                        fragmentCameraBinding.overlay.set3DModel(model)
+                    }
+                }
+                
+                // Hide 3D model if not visible in ViewModel
+                if (!viewModel.is3DModelVisible()) {
+                    fragmentCameraBinding.overlay.hide3DModel()
+                }
+                
                 // Force a redraw
                 fragmentCameraBinding.overlay.invalidate()
             }

@@ -20,6 +20,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
@@ -39,6 +40,11 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     private var scaleFactor: Float = 1f
     private var imageWidth: Int = 1
     private var imageHeight: Int = 1
+    
+    // 3D model rendering components
+    private val model3DRenderer = Model3DRenderer()
+    private val headDirectionCalculator = HeadDirectionCalculator()
+    private var show3DModel = false
 
     init {
         initPaints()
@@ -48,6 +54,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
         results = null
         linePaint.reset()
         pointPaint.reset()
+        model3DRenderer.clearModel()
+        show3DModel = false
         invalidate()
         initPaints()
     }
@@ -82,6 +90,9 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
             val offsetX = (width - scaledImageWidth) / 2f
             val offsetY = (height - scaledImageHeight) / 2f
 
+            // Update 3D renderer viewport
+            model3DRenderer.setViewport(width, height)
+
             // Iterate through each detected face
             faceLandmarkerResult.faceLandmarks().forEach { faceLandmarks ->
                 // Draw all landmarks for the current face
@@ -89,6 +100,19 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
 
                 // Draw all connectors for the current face
                 drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                
+                // Calculate and render 3D model if available
+                if (show3DModel && model3DRenderer.hasModel()) {
+                    try {
+                        val headPose = headDirectionCalculator.calculateHeadPose(faceLandmarkerResult)
+                        headPose?.let { pose ->
+                            model3DRenderer.updateHeadPose(pose)
+                            model3DRenderer.render(canvas, pointPaint)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("OverlayView", "Error rendering 3D model", e)
+                    }
+                }
             }
         }
     }
@@ -156,6 +180,36 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                 max(width * 1f / imageWidth, height * 1f / imageHeight)
             }
         }
+        invalidate()
+    }
+
+    /**
+     * Set a 3D model to render over the face
+     */
+    fun set3DModel(model: Model3D) {
+        model3DRenderer.setModel(model)
+        show3DModel = true
+        invalidate()
+    }
+    
+    /**
+     * Toggle 3D model visibility
+     */
+    fun toggle3DModel() {
+        show3DModel = !show3DModel
+        invalidate()
+    }
+    
+    /**
+     * Check if 3D model is currently visible
+     */
+    fun is3DModelVisible(): Boolean = show3DModel && model3DRenderer.hasModel()
+    
+    /**
+     * Hide the 3D model
+     */
+    fun hide3DModel() {
+        show3DModel = false
         invalidate()
     }
 

@@ -96,4 +96,13 @@ dependencies {
 
     // MediaPipe Library
     implementation 'com.google.mediapipe:tasks-vision:0.10.26'
+    
+    // File handling and storage
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    
+    // JSON parsing for 3D model formats
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // Coroutines for background processing
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
 }

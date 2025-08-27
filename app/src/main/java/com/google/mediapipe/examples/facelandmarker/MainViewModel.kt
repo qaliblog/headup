@@ -18,7 +18,7 @@ package com.google.mediapipe.examples.facelandmarker
 import androidx.lifecycle.ViewModel
 
 /**
- *  This ViewModel is used to store face landmarker helper settings
+ *  This ViewModel is used to store face landmarker helper settings and 3D model state
  */
 class MainViewModel : ViewModel() {
 
@@ -30,6 +30,10 @@ class MainViewModel : ViewModel() {
     private var _minFacePresenceConfidence: Float = FaceLandmarkerHelper
         .DEFAULT_FACE_PRESENCE_CONFIDENCE
     private var _maxFaces: Int = FaceLandmarkerHelper.DEFAULT_NUM_FACES
+    
+    // 3D Model state
+    private var _current3DModel: Model3D? = null
+    private var _is3DModelVisible: Boolean = true
 
     val currentDelegate: Int get() = _delegate
     val currentMinFaceDetectionConfidence: Float
@@ -60,4 +64,29 @@ class MainViewModel : ViewModel() {
     fun setMaxFaces(maxResults: Int) {
         _maxFaces = maxResults
     }
+    
+    // 3D Model methods
+    fun set3DModel(model: Model3D) {
+        _current3DModel = model
+        _is3DModelVisible = true
+    }
+    
+    fun get3DModel(): Model3D? = _current3DModel
+    
+    fun has3DModel(): Boolean = _current3DModel != null
+    
+    fun clear3DModel() {
+        _current3DModel = null
+        _is3DModelVisible = false
+    }
+    
+    fun toggle3DModelVisibility() {
+        _is3DModelVisible = !_is3DModelVisible
+    }
+    
+    fun set3DModelVisibility(visible: Boolean) {
+        _is3DModelVisible = visible
+    }
+    
+    fun is3DModelVisible(): Boolean = _is3DModelVisible && _current3DModel != null
 }

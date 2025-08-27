@@ -42,10 +42,24 @@
             app:destination="@id/permissions_fragment"
             app:popUpTo="@id/camera_fragment"
             app:popUpToInclusive="true" />
+            
+        <action
+            android:id="@+id/action_camera_to_model3d"
+            app:destination="@id/model3d_fragment" />
     </fragment>
 
     <fragment
         android:id="@+id/gallery_fragment"
         android:name="com.google.mediapipe.examples.facelandmarker.fragment.GalleryFragment"
         android:label="GalleryFragment" />
+        
+    <fragment
+        android:id="@+id/model3d_fragment"
+        android:name="com.google.mediapipe.examples.facelandmarker.fragment.Model3DFragment"
+        android:label="Model3DFragment">
+        
+        <action
+            android:id="@+id/action_model3d_to_camera"
+            app:destination="@id/camera_fragment" />
+    </fragment>
 </navigation>
