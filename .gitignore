@@ -13,3 +13,48 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Android Studio files
+/.idea/
+*.iws
+*.iml
+*.ipr
+
+# Gradle files
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Local configuration files
+local.properties
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 3D model files and uploads
+*.obj
+*.fbx
+*.ply
+*.stl
+*.3ds
+*.dae
+*.blend
+uploads/
+temp_models/
+processed_models/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

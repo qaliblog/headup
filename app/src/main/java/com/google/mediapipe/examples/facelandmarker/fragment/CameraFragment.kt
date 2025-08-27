@@ -168,6 +168,60 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
 
         // Attach listeners to UI control widgets
         initBottomSheetControls()
+        
+        // Add debug logging for ViewModel state
+        debugViewModelState()
+        
+        // TEMPORARY: Add test button to force load test cube
+        fragmentCameraBinding.viewFinder.setOnLongClickListener {
+            loadTestCubeDirectly()
+            true
+        }
+        
+        // TEMPORARY: Triple-tap to toggle debug mode (show face mesh + 3D model)
+        var tapCount = 0
+        var lastTapTime = 0L
+        fragmentCameraBinding.overlay.setOnClickListener {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastTapTime < 300) { // 300ms between taps
+                tapCount++
+                if (tapCount >= 3) {
+                    fragmentCameraBinding.overlay.toggleDebugMode()
+                    tapCount = 0
+                }
+            } else {
+                tapCount = 1
+            }
+            lastTapTime = currentTime
+        }
+    }
+    
+    private fun loadTestCubeDirectly() {
+        Log.d(TAG, "=== FORCE LOADING TEST CUBE ===")
+        try {
+            val parser = com.google.mediapipe.examples.facelandmarker.Model3DParser()
+            val testCube = parser.createTestCube(1.0f)
+            viewModel.set3DModel(testCube)
+            Log.d(TAG, "Test cube loaded directly: ${testCube.vertices.size} vertices")
+            
+            // Force update overlay
+            fragmentCameraBinding.overlay.set3DModel(testCube)
+            Log.d(TAG, "Test cube set in overlay")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading test cube directly", e)
+        }
+    }
+    
+    private fun debugViewModelState() {
+        Log.d(TAG, "=== DEBUG: ViewModel State in Camera ===")
+        Log.d(TAG, "Has 3D Model: ${viewModel.has3DModel()}")
+        Log.d(TAG, "Is 3D Model Visible: ${viewModel.is3DModelVisible()}")
+        viewModel.get3DModel()?.let { model ->
+            Log.d(TAG, "Current 3D Model: ${model.vertices.size} vertices, ${model.faces.size} faces")
+        } ?: run {
+            Log.d(TAG, "No 3D Model in ViewModel")
+        }
+        Log.d(TAG, "=== END DEBUG ===")
     }
 
     private fun initBottomSheetControls() {
@@ -393,6 +447,10 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
     ) {
         activity?.runOnUiThread {
             if (_fragmentCameraBinding != null) {
+                // Debug: Log face detection results
+                val faceCount = resultBundle.result.faceLandmarks().size
+                Log.d(TAG, "Face detection results: $faceCount faces detected")
+                
                 if (fragmentCameraBinding.recyclerviewResults.scrollState != SCROLL_STATE_DRAGGING) {
                     faceBlendshapesResultAdapter.updateResults(resultBundle.result)
                     faceBlendshapesResultAdapter.notifyDataSetChanged()
@@ -409,6 +467,20 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
                     resultBundle.inputImageWidth,
                     RunningMode.LIVE_STREAM
                 )
+                
+                // Update 3D model if available and should be visible
+                if (viewModel.is3DModelVisible()) {
+                    viewModel.get3DModel()?.let { model ->
+                        Log.d(TAG, "Setting 3D model with ${model.vertices.size} vertices")
+                        fragmentCameraBinding.overlay.set3DModel(model)
+                    } ?: run {
+                        Log.w(TAG, "ViewModel says model should be visible but model is null")
+                    }
+                } else {
+                    Log.d(TAG, "ViewModel says 3D model should not be visible")
+                    fragmentCameraBinding.overlay.hide3DModel()
+                }
+                
                 // Force a redraw
                 fragmentCameraBinding.overlay.invalidate()
             }

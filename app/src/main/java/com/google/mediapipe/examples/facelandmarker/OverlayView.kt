@@ -19,7 +19,9 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
 import androidx.core.content.ContextCompat
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
@@ -39,6 +41,12 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     private var scaleFactor: Float = 1f
     private var imageWidth: Int = 1
     private var imageHeight: Int = 1
+    
+    // 3D model rendering components
+    private val model3DRenderer = Model3DRenderer()
+    private val headDirectionCalculator = HeadDirectionCalculator()
+    private var show3DModel = false
+    private var debugMode = false // Show both face mesh AND 3D model for testing
 
     init {
         initPaints()
@@ -48,6 +56,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
         results = null
         linePaint.reset()
         pointPaint.reset()
+        model3DRenderer.clearModel()
+        show3DModel = false
         invalidate()
         initPaints()
     }
@@ -82,15 +92,85 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
             val offsetX = (width - scaledImageWidth) / 2f
             val offsetY = (height - scaledImageHeight) / 2f
 
+            // Update 3D renderer viewport
+            model3DRenderer.setViewport(width, height)
+
             // Iterate through each detected face
             faceLandmarkerResult.faceLandmarks().forEach { faceLandmarks ->
-                // Draw all landmarks for the current face
-                drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
-
-                // Draw all connectors for the current face
-                drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                
+                // Calculate face dimensions for proper 3D model scaling
+                val faceBounds = calculateFaceBounds(faceLandmarks)
+                val faceWidth = faceBounds.width() * scaleFactor
+                val faceHeight = faceBounds.height() * scaleFactor
+                
+                // Choose rendering mode: 3D model replacement, debug mode, or face landmarks/mesh
+                if (show3DModel && model3DRenderer.hasModel()) {
+                    // 3D Model Mode: Replace face mesh with 3D model (or show both in debug mode)
+                    try {
+                        val modeText = if (debugMode) "with face mesh (debug)" else "instead of face mesh"
+                        Log.d("OverlayView", "Rendering 3D model $modeText - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                        
+                        // Show face mesh in debug mode or as fallback
+                        if (debugMode) {
+                            drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                            drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                        }
+                        
+                        // Update renderer with face parameters for proper scaling and positioning
+                        model3DRenderer.updateFaceParameters(faceWidth, faceHeight, scaleFactor, offsetX, offsetY)
+                        
+                        val headPose = headDirectionCalculator.calculateHeadPose(faceLandmarkerResult)
+                        headPose?.let { pose ->
+                            Log.d("OverlayView", "Head pose calculated: center=${pose.center}, direction=${pose.direction}")
+                            Log.d("OverlayView", "Face dimensions: width=$faceWidth, height=$faceHeight")
+                            model3DRenderer.updateHeadPose(pose)
+                            model3DRenderer.render(canvas, pointPaint)
+                        } ?: run {
+                            Log.w("OverlayView", "Could not calculate head pose, falling back to face mesh")
+                            // Fallback to face mesh if head pose calculation fails and not already showing
+                            if (!debugMode) {
+                                drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                                drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("OverlayView", "Error rendering 3D model, falling back to face mesh", e)
+                        // Fallback to face mesh if 3D rendering fails and not already showing
+                        if (!debugMode) {
+                            drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                            drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                        }
+                    }
+                } else {
+                    // Face Mesh Mode: Draw traditional face landmarks and connectors
+                    Log.d("OverlayView", "Rendering face mesh - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                    drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                    drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                }
             }
         }
+    }
+
+    /**
+     * Calculate the bounding box of the face landmarks
+     */
+    private fun calculateFaceBounds(faceLandmarks: List<NormalizedLandmark>): RectF {
+        var minX = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = Float.MIN_VALUE
+        
+        faceLandmarks.forEach { landmark ->
+            val x = landmark.x() * imageWidth
+            val y = landmark.y() * imageHeight
+            
+            minX = minOf(minX, x)
+            maxX = maxOf(maxX, x)
+            minY = minOf(minY, y)
+            maxY = maxOf(maxY, y)
+        }
+        
+        return RectF(minX, minY, maxX, maxY)
     }
 
     /**
@@ -156,6 +236,48 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                 max(width * 1f / imageWidth, height * 1f / imageHeight)
             }
         }
+        invalidate()
+    }
+
+    /**
+     * Set a 3D model to render over the face
+     */
+    fun set3DModel(model: Model3D) {
+        model3DRenderer.setModel(model)
+        show3DModel = true
+        invalidate()
+    }
+    
+    /**
+     * Toggle 3D model visibility
+     */
+    fun toggle3DModel() {
+        show3DModel = !show3DModel
+        invalidate()
+    }
+    
+    /**
+     * Check if 3D model is currently visible
+     */
+    fun is3DModelVisible(): Boolean = show3DModel && model3DRenderer.hasModel()
+    
+    /**
+     * Hide the 3D model
+     */
+    fun hide3DModel() {
+        show3DModel = false
+        invalidate()
+    }
+    
+    fun toggleDebugMode() {
+        debugMode = !debugMode
+        Log.d("OverlayView", "Debug mode ${if (debugMode) "enabled" else "disabled"}")
+        invalidate()
+    }
+    
+    fun setDebugMode(enabled: Boolean) {
+        debugMode = enabled
+        Log.d("OverlayView", "Debug mode ${if (debugMode) "enabled" else "disabled"}")
         invalidate()
     }
 
