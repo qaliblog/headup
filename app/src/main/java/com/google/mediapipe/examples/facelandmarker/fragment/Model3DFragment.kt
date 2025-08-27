@@ -30,7 +30,9 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.textview.MaterialTextView
 import com.google.mediapipe.examples.facelandmarker.FileUploadHelper
 import com.google.mediapipe.examples.facelandmarker.MainViewModel
+import com.google.mediapipe.examples.facelandmarker.Model3D
 import com.google.mediapipe.examples.facelandmarker.Model3DParser
+import com.google.mediapipe.examples.facelandmarker.ModelStorageManager
 import com.google.mediapipe.examples.facelandmarker.R
 import com.google.mediapipe.examples.facelandmarker.databinding.FragmentModel3dBinding
 import kotlinx.coroutines.*
