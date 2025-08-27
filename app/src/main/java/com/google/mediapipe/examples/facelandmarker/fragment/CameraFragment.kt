@@ -168,6 +168,43 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
 
         // Attach listeners to UI control widgets
         initBottomSheetControls()
+        
+        // Add debug logging for ViewModel state
+        debugViewModelState()
+        
+        // TEMPORARY: Add test button to force load test cube
+        fragmentCameraBinding.viewFinder.setOnLongClickListener {
+            loadTestCubeDirectly()
+            true
+        }
+    }
+    
+    private fun loadTestCubeDirectly() {
+        Log.d(TAG, "=== FORCE LOADING TEST CUBE ===")
+        try {
+            val parser = com.google.mediapipe.examples.facelandmarker.Model3DParser()
+            val testCube = parser.createTestCube(1.0f)
+            viewModel.set3DModel(testCube)
+            Log.d(TAG, "Test cube loaded directly: ${testCube.vertices.size} vertices")
+            
+            // Force update overlay
+            fragmentCameraBinding.overlay.set3DModel(testCube)
+            Log.d(TAG, "Test cube set in overlay")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading test cube directly", e)
+        }
+    }
+    
+    private fun debugViewModelState() {
+        Log.d(TAG, "=== DEBUG: ViewModel State in Camera ===")
+        Log.d(TAG, "Has 3D Model: ${viewModel.has3DModel()}")
+        Log.d(TAG, "Is 3D Model Visible: ${viewModel.is3DModelVisible()}")
+        viewModel.get3DModel()?.let { model ->
+            Log.d(TAG, "Current 3D Model: ${model.vertices.size} vertices, ${model.faces.size} faces")
+        } ?: run {
+            Log.d(TAG, "No 3D Model in ViewModel")
+        }
+        Log.d(TAG, "=== END DEBUG ===")
     }
 
     private fun initBottomSheetControls() {
@@ -393,6 +430,10 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
     ) {
         activity?.runOnUiThread {
             if (_fragmentCameraBinding != null) {
+                // Debug: Log face detection results
+                val faceCount = resultBundle.result.faceLandmarks().size
+                Log.d(TAG, "Face detection results: $faceCount faces detected")
+                
                 if (fragmentCameraBinding.recyclerviewResults.scrollState != SCROLL_STATE_DRAGGING) {
                     faceBlendshapesResultAdapter.updateResults(resultBundle.result)
                     faceBlendshapesResultAdapter.notifyDataSetChanged()
