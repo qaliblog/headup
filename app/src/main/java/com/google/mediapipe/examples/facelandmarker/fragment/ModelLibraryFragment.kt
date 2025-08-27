@@ -154,6 +154,8 @@ class ModelLibraryFragment : Fragment() {
                 }
                 
                 if (model3D != null) {
+                    Log.d(TAG, "Successfully loaded model: ${model.getDisplayName()} with ${model3D.vertices.size} vertices, ${model3D.faces.size} faces")
+                    
                     // Set as active model in storage
                     withContext(Dispatchers.IO) {
                         modelStorageManager.setActiveModel(model.id)
@@ -161,6 +163,7 @@ class ModelLibraryFragment : Fragment() {
                     
                     // Update ViewModel
                     viewModel.set3DModel(model3D)
+                    Log.d(TAG, "Set model in ViewModel. ViewModel visible state: ${viewModel.is3DModelVisible()}")
                     
                     // Refresh the list to show active state
                     loadStoredModels()
@@ -171,6 +174,7 @@ class ModelLibraryFragment : Fragment() {
                         Toast.LENGTH_SHORT
                     ).show()
                 } else {
+                    Log.e(TAG, "Failed to load model: ${model.getDisplayName()}")
                     Toast.makeText(
                         requireContext(), 
                         "Failed to load model", 

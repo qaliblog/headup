@@ -65,10 +65,18 @@ class Model3DRenderer {
      * Render the 3D model onto the canvas
      */
     fun render(canvas: Canvas, paint: Paint) {
-        val model = currentModel ?: return
-        val headPose = currentHeadPose ?: return
+        val model = currentModel ?: run {
+            Log.w(TAG, "Cannot render: no current model")
+            return
+        }
+        val headPose = currentHeadPose ?: run {
+            Log.w(TAG, "Cannot render: no head pose")
+            return
+        }
         
         try {
+            Log.d(TAG, "Rendering model with ${model.vertices.size} vertices, ${model.faces.size} faces")
+            
             // Calculate transformation matrix
             val transformMatrix = calculateTransformMatrix(headPose)
             
@@ -80,8 +88,12 @@ class Model3DRenderer {
                 projectedVertices.add(projected)
             }
             
+            Log.d(TAG, "Projected ${projectedVertices.size} vertices")
+            
             // Render wireframe
             renderWireframe(canvas, paint, model.faces, projectedVertices)
+            
+            Log.d(TAG, "Wireframe rendering completed")
             
         } catch (e: Exception) {
             Log.e(TAG, "Error rendering 3D model", e)

@@ -104,14 +104,20 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                 // Calculate and render 3D model if available
                 if (show3DModel && model3DRenderer.hasModel()) {
                     try {
+                        Log.d("OverlayView", "Rendering 3D model - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
                         val headPose = headDirectionCalculator.calculateHeadPose(faceLandmarkerResult)
                         headPose?.let { pose ->
+                            Log.d("OverlayView", "Head pose calculated: center=${pose.center}, direction=${pose.direction}")
                             model3DRenderer.updateHeadPose(pose)
                             model3DRenderer.render(canvas, pointPaint)
+                        } ?: run {
+                            Log.w("OverlayView", "Could not calculate head pose")
                         }
                     } catch (e: Exception) {
                         Log.e("OverlayView", "Error rendering 3D model", e)
                     }
+                } else {
+                    Log.d("OverlayView", "Not rendering 3D model - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
                 }
             }
         }

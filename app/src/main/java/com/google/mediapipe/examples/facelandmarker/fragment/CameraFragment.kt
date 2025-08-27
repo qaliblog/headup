@@ -410,15 +410,16 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
                     RunningMode.LIVE_STREAM
                 )
                 
-                // Update 3D model if available
-                viewModel.get3DModel()?.let { model ->
-                    if (!fragmentCameraBinding.overlay.is3DModelVisible()) {
+                // Update 3D model if available and should be visible
+                if (viewModel.is3DModelVisible()) {
+                    viewModel.get3DModel()?.let { model ->
+                        Log.d(TAG, "Setting 3D model with ${model.vertices.size} vertices")
                         fragmentCameraBinding.overlay.set3DModel(model)
+                    } ?: run {
+                        Log.w(TAG, "ViewModel says model should be visible but model is null")
                     }
-                }
-                
-                // Hide 3D model if not visible in ViewModel
-                if (!viewModel.is3DModelVisible()) {
+                } else {
+                    Log.d(TAG, "ViewModel says 3D model should not be visible")
                     fragmentCameraBinding.overlay.hide3DModel()
                 }
                 
