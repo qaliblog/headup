@@ -19,7 +19,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/mp_primary_variant"
+    android:background="@color/mp_color_primary_variant"
     tools:context=".fragment.Model3DFragment">
 
     <!-- Header -->
@@ -32,7 +32,7 @@
         android:layout_marginEnd="16dp"
         android:text="3D Model Upload"
         android:textAlignment="center"
-        android:textColor="@color/mp_color_on_primary"
+        android:textColor="@android:color/white"
         android:textSize="24sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
@@ -49,7 +49,7 @@
         android:layout_marginEnd="16dp"
         android:text="Upload a 3D model to overlay on detected faces. Supported formats: OBJ, FBX, PLY, STL, 3DS, DAE, BLEND, GLTF, GLB"
         android:textAlignment="center"
-        android:textColor="@color/mp_color_on_primary"
+        android:textColor="@android:color/white"
         android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -231,7 +231,7 @@
         android:layout_marginBottom="16dp"
         android:text="Instructions:\n1. Upload a 3D model or load the test cube\n2. The model will be aligned with detected face direction\n3. Use the camera view to see the overlay\n4. The model rotates based on head pose"
         android:textAlignment="center"
-        android:textColor="@color/mp_color_on_primary"
+        android:textColor="@android:color/white"
         android:textSize="12sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
