@@ -97,5 +97,32 @@
         <action
             android:id="@+id/action_preview_to_library"
             app:destination="@id/model_library_fragment" />
+            
+        <action
+            android:id="@+id/action_preview_to_manual_adjustment"
+            app:destination="@id/manual_adjustment_fragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/manual_adjustment_fragment"
+        android:name="com.google.mediapipe.examples.facelandmarker.fragment.ManualAdjustmentFragment"
+        android:label="ManualAdjustmentFragment">
+
+        <action
+            android:id="@+id/action_manual_adjustment_to_camera"
+            app:destination="@id/camera_fragment" />
+
+        <action
+            android:id="@+id/action_manual_adjustment_to_model3d"
+            app:destination="@id/model3d_fragment" />
+
+        <action
+            android:id="@+id/action_manual_adjustment_to_library"
+            app:destination="@id/model_library_fragment" />
+
+        <action
+            android:id="@+id/action_manual_adjustment_to_preview"
+            app:destination="@id/model_preview_fragment" />
+
     </fragment>
 </navigation>

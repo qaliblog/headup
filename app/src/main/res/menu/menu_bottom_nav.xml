@@ -39,4 +39,9 @@
         android:id="@id/model_preview_fragment"
         android:icon="@android:drawable/ic_menu_view"
         android:title="Preview" />
+        
+    <item
+        android:id="@id/manual_adjustment_fragment"
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:title="Adjust" />
 </menu>
