@@ -106,17 +106,64 @@ class Model3DFaceAnalyzer(private val context: Context) {
         return try {
             Log.d(TAG, "Starting multi-angle 3D model face analysis for model with ${model.vertices.size} vertices")
             
-            // Try multiple angles to improve face detection
-            val angles = listOf(
-                Triple(0f, 0f, 0f),      // Front view
-                Triple(0f, 30f, 0f),     // Slightly rotated right
-                Triple(0f, -30f, 0f),    // Slightly rotated left
-                Triple(15f, 0f, 0f),     // Slightly tilted up
-                Triple(-15f, 0f, 0f)     // Slightly tilted down
-            )
+            // Try comprehensive angles to catch faces in any orientation
+            val angles = mutableListOf<Triple<Float, Float, Float>>()
+            
+            // Primary orientations (faces might be facing different directions)
+            angles.addAll(listOf(
+                Triple(0f, 0f, 0f),       // Front view
+                Triple(0f, 90f, 0f),      // Right side
+                Triple(0f, -90f, 0f),     // Left side  
+                Triple(0f, 180f, 0f),     // Back view
+                Triple(90f, 0f, 0f),      // Looking up (face on top)
+                Triple(-90f, 0f, 0f),     // Looking down (face on bottom)
+                Triple(0f, 0f, 90f),      // Rolled right
+                Triple(0f, 0f, -90f),     // Rolled left
+                Triple(0f, 0f, 180f)      // Upside down
+            ))
+            
+            // Diagonal orientations (common for imported models)
+            angles.addAll(listOf(
+                Triple(45f, 45f, 0f),     // Up-right diagonal
+                Triple(45f, -45f, 0f),    // Up-left diagonal
+                Triple(-45f, 45f, 0f),    // Down-right diagonal
+                Triple(-45f, -45f, 0f),   // Down-left diagonal
+                Triple(45f, 0f, 45f),     // Tilted up-rolled
+                Triple(-45f, 0f, -45f)    // Tilted down-rolled
+            ))
+            
+            // Fine-tuned angles around front view (common slight misalignments)
+            angles.addAll(listOf(
+                Triple(0f, 15f, 0f),      // Slightly right
+                Triple(0f, -15f, 0f),     // Slightly left
+                Triple(15f, 0f, 0f),      // Slightly up
+                Triple(-15f, 0f, 0f),     // Slightly down
+                Triple(0f, 30f, 0f),      // More right
+                Triple(0f, -30f, 0f),     // More left
+                Triple(30f, 0f, 0f),      // More up
+                Triple(-30f, 0f, 0f),     // More down
+                Triple(0f, 0f, 15f),      // Slightly rolled right
+                Triple(0f, 0f, -15f)      // Slightly rolled left
+            ))
+            
+            // Add extreme angles for models that might be completely flipped
+            angles.addAll(listOf(
+                Triple(180f, 0f, 0f),     // Completely flipped vertically
+                Triple(0f, 135f, 0f),     // 3/4 turn right
+                Triple(0f, -135f, 0f),    // 3/4 turn left
+                Triple(135f, 0f, 0f),     // Severely tilted up
+                Triple(-135f, 0f, 0f),    // Severely tilted down
+                Triple(90f, 90f, 0f),     // Top-right corner
+                Triple(-90f, 90f, 0f),    // Bottom-right corner
+                Triple(90f, -90f, 0f),    // Top-left corner
+                Triple(-90f, -90f, 0f)    // Bottom-left corner
+            ))
+            
+            Log.d(TAG, "Testing ${angles.size} different angles for comprehensive face detection")
             
             var bestResult: Model3DFaceData? = null
             var maxLandmarks = 0
+            var bestAngle: Triple<Float, Float, Float>? = null
             
             for ((index, angle) in angles.withIndex()) {
                 Log.d(TAG, "Trying angle ${index + 1}/${angles.size}: pitch=${angle.first}°, yaw=${angle.second}°, roll=${angle.third}°")
@@ -138,7 +185,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 logImageCharacteristics(renderedImage, "Angle ${index + 1}")
                 
                 if (landmarks.size > maxLandmarks) {
-                    Log.d(TAG, "New best result with ${landmarks.size} landmarks")
+                    Log.d(TAG, "🎯 NEW BEST RESULT with ${landmarks.size} landmarks at angle: pitch=${angle.first}°, yaw=${angle.second}°, roll=${angle.third}°")
                     
                     // Step 3: Map 2D landmarks back to 3D model vertices
                     val landmarkToVertexMapping = mapLandmarksTo3DVertices(landmarks, model, renderedImage.width, renderedImage.height)
@@ -161,6 +208,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
                         faceScale = faceScale
                     )
                     maxLandmarks = landmarks.size
+                    bestAngle = angle
                 }
                 
                 // If we found a good amount of landmarks, we can stop early
@@ -170,10 +218,17 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 }
             }
             
-            if (bestResult != null) {
-                Log.d(TAG, "Multi-angle analysis completed: best result has ${maxLandmarks} landmarks")
+            if (bestResult != null && bestAngle != null) {
+                Log.d(TAG, "✅ Multi-angle analysis SUCCESS: ${maxLandmarks} landmarks detected!")
+                Log.d(TAG, "🎯 Best angle found: pitch=${bestAngle.first}°, yaw=${bestAngle.second}°, roll=${bestAngle.third}°")
+                Log.d(TAG, "💡 IMPORTANT: Your model face is oriented at this angle - this might explain why face detection failed before!")
             } else {
-                Log.w(TAG, "No face landmarks detected in any angle")
+                Log.w(TAG, "❌ No face landmarks detected in ANY of the ${angles.size} angles tested")
+                Log.w(TAG, "🔍 This suggests the model either:")
+                Log.w(TAG, "   1. Doesn't have clear facial features in the wireframe")
+                Log.w(TAG, "   2. Is too small/dark in the rendered images")
+                Log.w(TAG, "   3. Has proportions too different from human faces")
+                Log.w(TAG, "   4. Check the saved debug images for visual inspection")
             }
             
             bestResult
@@ -198,21 +253,27 @@ class Model3DFaceAnalyzer(private val context: Context) {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         
-        // Clear background with gray for better MediaPipe detection
-        canvas.drawColor(Color.GRAY)
+        // Clear background with medium gray for better MediaPipe detection
+        canvas.drawColor(Color.rgb(128, 128, 128))
         
-        // Set up high-contrast paints
-        val vertexPaint = Paint().apply {
+        // Set up high-contrast paints optimized for face detection
+        val faceFillPaint = Paint().apply {
             color = Color.WHITE
-            strokeWidth = 4f
             style = Paint.Style.FILL
             isAntiAlias = true
         }
         
-        val facePaint = Paint().apply {
+        val faceStrokePaint = Paint().apply {
+            color = Color.rgb(220, 220, 220) // Light gray for edges
+            strokeWidth = 1f
+            style = Paint.Style.STROKE
+            isAntiAlias = true
+        }
+        
+        val vertexPaint = Paint().apply {
             color = Color.WHITE
-            strokeWidth = 2f
-            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 3f
+            style = Paint.Style.FILL
             isAntiAlias = true
         }
         
@@ -270,10 +331,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
             }
         }
         
-        // Render faces as wireframe with same rotation
-        facePaint.style = Paint.Style.STROKE
-        facePaint.strokeWidth = 1f
-        
+        // First pass: Render faces as FILLED triangles for better face detection
         model.faces.forEach { face ->
             val vertices = listOf(
                 model.vertices[face.v1],
@@ -305,13 +363,53 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 Pair(x3 * scale + width / 2f, y3 * scale + height / 2f)
             }
             
-            // Draw triangle edges
+            // Draw filled triangle (face-like surface)
+            val path = Path()
+            path.moveTo(transformedVertices[0].first, transformedVertices[0].second)
+            path.lineTo(transformedVertices[1].first, transformedVertices[1].second)
+            path.lineTo(transformedVertices[2].first, transformedVertices[2].second)
+            path.close()
+            canvas.drawPath(path, faceFillPaint)
+        }
+        
+        // Second pass: Add wireframe edges for definition
+        model.faces.forEach { face ->
+            val vertices = listOf(
+                model.vertices[face.v1],
+                model.vertices[face.v2], 
+                model.vertices[face.v3]
+            )
+            
+            val transformedVertices = vertices.map { vertex ->
+                // Apply same transformation (repeated for clarity)
+                var x = vertex.x - centerX
+                var y = vertex.y - centerY
+                var z = vertex.z - centerZ
+                
+                val cosYaw = cos(yawRad)
+                val sinYaw = sin(yawRad)
+                val cosPitch = cos(pitchRad)
+                val sinPitch = sin(pitchRad)
+                val cosRoll = cos(rollRad)
+                val sinRoll = sin(rollRad)
+                
+                val x1 = x * cosYaw - z * sinYaw
+                val z1 = x * sinYaw + z * cosYaw
+                val y2 = y * cosPitch - z1 * sinPitch
+                val z2 = y * sinPitch + z1 * cosPitch
+                val x3 = x1 * cosRoll - y2 * sinRoll
+                val y3 = x1 * sinRoll + y2 * cosRoll
+                
+                Pair(x3 * scale + width / 2f, y3 * scale + height / 2f)
+            }
+            
+            // Draw triangle edges for definition
             for (i in 0 until 3) {
                 val j = (i + 1) % 3
                 canvas.drawLine(
                     transformedVertices[i].first, transformedVertices[i].second,
                     transformedVertices[j].first, transformedVertices[j].second,
-                    facePaint
+                    faceStrokePaint
                 )
             }
         }
