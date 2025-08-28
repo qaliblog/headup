@@ -242,6 +242,9 @@ class ManualAdjustmentFragment : Fragment() {
                 } else {
                     fragmentManualAdjustmentBinding.textLandmarkStatus.text = "No face data detected"
                 }
+                
+                // Load saved adjustments for this model
+                loadSavedAdjustments()
             } else {
                 fragmentManualAdjustmentBinding.textModelStatus.text = "No model loaded"
                 fragmentManualAdjustmentBinding.textLandmarkStatus.text = "Load a model first"
@@ -429,6 +432,48 @@ class ManualAdjustmentFragment : Fragment() {
             Toast.makeText(requireContext(), 
                 "⚠️ No model loaded to apply adjustments", 
                 Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun loadSavedAdjustments() {
+        val modelId = viewModel.getCurrentModelIdForSaving()
+        if (modelId != null) {
+            try {
+                val modelStorageManager = ModelStorageManager(requireContext())
+                val savedAdjustments = modelStorageManager.getModelAdjustments(modelId)
+                
+                if (savedAdjustments != null) {
+                    Log.d(TAG, "📥 Loading saved adjustments for model: $modelId")
+                    
+                    // Update manual variables
+                    manualScale = savedAdjustments.scale
+                    manualScaleX = savedAdjustments.scaleX
+                    manualScaleY = savedAdjustments.scaleY
+                    manualOffsetX = savedAdjustments.offsetX
+                    manualOffsetY = savedAdjustments.offsetY
+                    manualOffsetZ = savedAdjustments.offsetZ
+                    manualRotationX = savedAdjustments.rotationX
+                    manualRotationY = savedAdjustments.rotationY
+                    manualRotationZ = savedAdjustments.rotationZ
+                    landmarkConfidenceThreshold = savedAdjustments.confidenceThreshold
+                    
+                    // Update UI controls to reflect loaded values
+                    initializeValues()
+                    
+                    // Apply the loaded adjustments
+                    applyManualAdjustments()
+                    
+                    Toast.makeText(requireContext(),
+                        "📥 Loaded saved adjustments (${savedAdjustments.getFormattedSaveDate()})",
+                        Toast.LENGTH_SHORT).show()
+                        
+                    Log.d(TAG, "✅ Loaded adjustments: scale=${savedAdjustments.scale}, offsets=(${savedAdjustments.offsetX}, ${savedAdjustments.offsetY})")
+                } else {
+                    Log.d(TAG, "📝 No saved adjustments found for model: $modelId, using defaults")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading saved adjustments", e)
+            }
         }
     }
     

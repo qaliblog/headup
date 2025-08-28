@@ -42,6 +42,7 @@ import androidx.viewpager2.widget.ViewPager2.SCROLL_STATE_SETTLING
 import androidx.viewpager2.widget.ViewPager2.ScrollState
 import com.google.mediapipe.examples.facelandmarker.FaceLandmarkerHelper
 import com.google.mediapipe.examples.facelandmarker.MainViewModel
+import com.google.mediapipe.examples.facelandmarker.ManualAdjustmentData
 import com.google.mediapipe.examples.facelandmarker.R
 import com.google.mediapipe.examples.facelandmarker.databinding.FragmentCameraBinding
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -171,6 +172,14 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
         
         // Add debug logging for ViewModel state
         debugViewModelState()
+        
+        // Observe manual adjustments changes
+        viewModel.manualAdjustments.observe(viewLifecycleOwner) { adjustments ->
+            adjustments?.let {
+                Log.d(TAG, "🎛️ Manual adjustments updated in camera view")
+                fragmentCameraBinding.overlay.applyManualAdjustments(it)
+            }
+        }
         
         // TEMPORARY: Add test button to force load test cube
         fragmentCameraBinding.viewFinder.setOnLongClickListener {

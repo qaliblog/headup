@@ -49,7 +49,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     }
     
     private val filledPaint = Paint().apply {
-        color = Color.argb(180, 0, 255, 255) // Semi-transparent cyan
+        color = Color.argb(200, 100, 200, 255) // More opaque blue-cyan
         style = Paint.Style.FILL
         isAntiAlias = true
     }
@@ -204,12 +204,14 @@ class Model3DPreviewView @JvmOverloads constructor(
                 transformVertex(vertex, scaleX, scaleY, offsetX, offsetY, rotation)
             }
             
-            // Draw wireframe triangle
-            drawTriangle(canvas, transformedVertices, modelPaint)
-            
             if (useFilledFaces && transformedVertices.size >= 3) {
-                // Draw filled triangle with transparency
+                // Draw filled triangle first (as base)
                 drawTriangle(canvas, transformedVertices, filledPaint)
+                // Draw wireframe on top for definition
+                drawTriangle(canvas, transformedVertices, modelPaint)
+            } else {
+                // Draw wireframe only
+                drawTriangle(canvas, transformedVertices, modelPaint)
             }
         }
     }

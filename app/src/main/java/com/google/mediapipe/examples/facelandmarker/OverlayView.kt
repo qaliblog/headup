@@ -395,6 +395,17 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
         invalidate()
     }
     
+    fun applyManualAdjustments(adjustments: ManualAdjustmentData) {
+        // Apply adjustments to all renderers that support them
+        // Note: This is a simplified implementation
+        // In a full implementation, each renderer would need to support manual adjustments
+        Log.d("OverlayView", "🎛️ Applying manual adjustments: scale=${adjustments.scale}, offset=(${adjustments.offsetX}, ${adjustments.offsetY})")
+        
+        // For now, just invalidate to trigger a redraw
+        // TODO: Pass adjustments to individual renderers
+        invalidate()
+    }
+    
     fun setDebugMode(enabled: Boolean) {
         debugMode = enabled
         Log.d("OverlayView", "Debug mode ${if (debugMode) "enabled" else "disabled"}")
