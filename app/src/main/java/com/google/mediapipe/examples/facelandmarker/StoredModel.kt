@@ -31,7 +31,10 @@ data class StoredModel(
     val fileSize: Long,
     val vertexCount: Int,
     val faceCount: Int,
-    val isActive: Boolean = false
+    val isActive: Boolean = false,
+    val hasFaceData: Boolean = false,
+    val landmarkCount: Int = 0,
+    val faceDetectionAttempted: Boolean = false
 ) {
     fun getDisplayName(): String = if (name.isBlank()) originalFileName else name
     
@@ -49,6 +52,22 @@ data class StoredModel(
             java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(date)
         } catch (e: Exception) {
             "Unknown date"
+        }
+    }
+    
+    fun getFaceDetectionStatus(): String {
+        return when {
+            !faceDetectionAttempted -> "Face detection pending..."
+            hasFaceData -> "✓ Face detected ($landmarkCount landmarks)"
+            else -> "⚠ No face detected"
+        }
+    }
+    
+    fun getFaceDetectionStatusColor(): Int {
+        return when {
+            !faceDetectionAttempted -> android.R.color.darker_gray
+            hasFaceData -> android.R.color.holo_green_dark
+            else -> android.R.color.holo_orange_dark
         }
     }
 }

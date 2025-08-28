@@ -52,6 +52,7 @@ class StoredModelsAdapter(
         private val nameText: TextView = itemView.findViewById(R.id.text_model_name)
         private val detailsText: TextView = itemView.findViewById(R.id.text_model_details)
         private val formatText: TextView = itemView.findViewById(R.id.text_format)
+        private val faceStatusText: TextView = itemView.findViewById(R.id.text_face_status)
         private val dateText: TextView = itemView.findViewById(R.id.text_date_added)
         private val activeIndicator: View = itemView.findViewById(R.id.indicator_active)
 
@@ -60,6 +61,10 @@ class StoredModelsAdapter(
             detailsText.text = "${model.vertexCount} vertices • ${model.faceCount} faces • ${model.getFormattedSize()}"
             formatText.text = model.fileFormat
             dateText.text = "Added ${model.getFormattedDate()}"
+            
+            // Show face detection status
+            faceStatusText.text = model.getFaceDetectionStatus()
+            faceStatusText.setTextColor(ContextCompat.getColor(itemView.context, model.getFaceDetectionStatusColor()))
             
             // Show active indicator
             activeIndicator.visibility = if (model.isActive) View.VISIBLE else View.GONE

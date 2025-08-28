@@ -84,6 +84,10 @@ class ModelStorageManager(private val context: Context) {
             // Generate preview image
             val previewPath = generatePreview(model3D, modelId)
             
+            // Extract face detection information from model
+            val hasFaceData = model3D.hasFaceData
+            val landmarkCount = model3D.faceData?.landmarks?.size ?: 0
+            
             val storedModel = StoredModel(
                 id = modelId,
                 name = customName,
@@ -93,7 +97,10 @@ class ModelStorageManager(private val context: Context) {
                 previewImagePath = previewPath,
                 fileSize = fileSize,
                 vertexCount = model3D.vertices.size,
-                faceCount = model3D.faces.size
+                faceCount = model3D.faces.size,
+                hasFaceData = hasFaceData,
+                landmarkCount = landmarkCount,
+                faceDetectionAttempted = true
             )
             
             // Save to list
@@ -284,36 +291,10 @@ class ModelStorageManager(private val context: Context) {
     private fun generatePreview(model3D: Model3D, modelId: String): String? {
         return try {
             val previewSize = 200
-            val bitmap = Bitmap.createBitmap(previewSize, previewSize, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
             
-            // Simple wireframe preview
-            canvas.drawColor(Color.BLACK)
-            val paint = Paint().apply {
-                color = Color.CYAN
-                strokeWidth = 2f
-                style = Paint.Style.STROKE
-            }
-            
-            // Scale and center the model
-            val scale = model3D.getScaleFactor(100f)
-            val centerX = previewSize / 2f
-            val centerY = previewSize / 2f
-            
-            // Draw some edges (simplified preview)
-            model3D.faces.take(50).forEach { face -> // Limit for performance
-                if (face.v1 < model3D.vertices.size && face.v2 < model3D.vertices.size) {
-                    val v1 = model3D.vertices[face.v1]
-                    val v2 = model3D.vertices[face.v2]
-                    
-                    val x1 = centerX + v1.x * scale
-                    val y1 = centerY + v1.y * scale
-                    val x2 = centerX + v2.x * scale
-                    val y2 = centerY + v2.y * scale
-                    
-                    canvas.drawLine(x1, y1, x2, y2, paint)
-                }
-            }
+            // Try to use the face analyzer for better preview
+            val faceAnalyzer = Model3DFaceAnalyzer(context)
+            val bitmap = faceAnalyzer.createModelPreview(model3D, previewSize, previewSize)
             
             // Save preview image
             val previewFile = File(previewsDir, "${modelId}_preview.png")

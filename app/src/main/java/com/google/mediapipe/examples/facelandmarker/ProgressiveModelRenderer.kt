@@ -315,12 +315,67 @@ class ProgressiveModelRenderer {
         model: Model3D,
         transformedVertices: List<PointF>
     ) {
-        paint.color = Color.GREEN // Use green for progressive model
-        paint.strokeWidth = 3f
+        // IMMEDIATE DEBUG: Draw large visible markers first
+        val debugPaint = Paint().apply {
+            isAntiAlias = true
+        }
+        
+        // 1. Draw large red cross at screen center to prove rendering works
+        debugPaint.color = Color.RED
+        debugPaint.strokeWidth = 8f
+        debugPaint.style = Paint.Style.STROKE
+        val centerX = viewportWidth / 2f
+        val centerY = viewportHeight / 2f
+        canvas.drawLine(centerX - 100, centerY, centerX + 100, centerY, debugPaint)
+        canvas.drawLine(centerX, centerY - 100, centerX, centerY + 100, debugPaint)
+        
+        // 2. Draw large yellow circles for first few vertices
+        debugPaint.color = Color.YELLOW
+        debugPaint.style = Paint.Style.FILL
+        transformedVertices.take(5).forEachIndexed { index, vertex ->
+            canvas.drawCircle(vertex.x, vertex.y, 20f, debugPaint)
+            
+            // Draw index number
+            debugPaint.color = Color.BLACK
+            debugPaint.textSize = 24f
+            canvas.drawText("$index", vertex.x - 8, vertex.y + 8, debugPaint)
+            debugPaint.color = Color.YELLOW
+        }
+        
+        // 3. Draw status text
+        debugPaint.color = Color.WHITE
+        debugPaint.style = Paint.Style.FILL
+        debugPaint.textSize = 20f
+        canvas.drawText("Progressive Renderer ACTIVE", 50f, 50f, debugPaint)
+        canvas.drawText("Vertices: ${transformedVertices.size}", 50f, 80f, debugPaint)
+        canvas.drawText("Scale: ${String.format("%.2f", currentScale)}", 50f, 110f, debugPaint)
+        canvas.drawText("Target: ${String.format("%.2f", targetScale)}", 50f, 140f, debugPaint)
+        
+        // 4. Draw bounding box of all vertices
+        if (transformedVertices.isNotEmpty()) {
+            val minX = transformedVertices.minOf { it.x }
+            val maxX = transformedVertices.maxOf { it.x }
+            val minY = transformedVertices.minOf { it.y }
+            val maxY = transformedVertices.maxOf { it.y }
+            
+            debugPaint.color = Color.MAGENTA
+            debugPaint.strokeWidth = 4f
+            debugPaint.style = Paint.Style.STROKE
+            canvas.drawRect(minX, minY, maxX, maxY, debugPaint)
+            
+            debugPaint.color = Color.WHITE
+            debugPaint.style = Paint.Style.FILL
+            canvas.drawText("Bounds: ${String.format("%.0f", maxX - minX)}x${String.format("%.0f", maxY - minY)}", 50f, 170f, debugPaint)
+        }
+        
+        // 5. Original wireframe rendering (make it highly visible)
+        paint.color = Color.GREEN
+        paint.strokeWidth = 5f // Thicker lines
         paint.style = Paint.Style.STROKE
         paint.isAntiAlias = true
         
-        model.faces.forEach { face ->
+        // Only render first 50 faces to avoid overwhelming display
+        model.faces.take(50).forEach { face ->
             if (face.v1 < transformedVertices.size && 
                 face.v2 < transformedVertices.size && 
                 face.v3 < transformedVertices.size) {

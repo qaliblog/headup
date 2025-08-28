@@ -98,45 +98,75 @@ class Model3DFaceAnalyzer(private val context: Context) {
     }
     
     /**
-     * Analyze a 3D model to detect facial landmarks
+     * Analyze a 3D model to detect facial landmarks using multi-angle scanning
      */
     fun analyzeModel3DFace(model: Model3D): Model3DFaceData? {
         return try {
-            Log.d(TAG, "Starting 3D model face analysis for model with ${model.vertices.size} vertices")
+            Log.d(TAG, "Starting multi-angle 3D model face analysis for model with ${model.vertices.size} vertices")
             
-            // Step 1: Render 3D model to 2D image for MediaPipe analysis
-            val renderedImage = render3DModelToImage(model)
+            // Try multiple angles to improve face detection
+            val angles = listOf(
+                Triple(0f, 0f, 0f),      // Front view
+                Triple(0f, 30f, 0f),     // Slightly rotated right
+                Triple(0f, -30f, 0f),    // Slightly rotated left
+                Triple(15f, 0f, 0f),     // Slightly tilted up
+                Triple(-15f, 0f, 0f)     // Slightly tilted down
+            )
             
-            // Step 2: Detect face landmarks in the rendered image
-            val landmarks = detectFaceLandmarks(renderedImage)
+            var bestResult: Model3DFaceData? = null
+            var maxLandmarks = 0
             
-            if (landmarks.isEmpty()) {
-                Log.w(TAG, "No face landmarks detected in 3D model")
-                return null
+            for ((index, angle) in angles.withIndex()) {
+                Log.d(TAG, "Trying angle ${index + 1}/${angles.size}: pitch=${angle.first}°, yaw=${angle.second}°, roll=${angle.third}°")
+                
+                // Step 1: Render 3D model from this angle
+                val renderedImage = render3DModelToImageWithRotation(model, angle.first, angle.second, angle.third)
+                
+                // Step 2: Detect face landmarks in the rendered image
+                val landmarks = detectFaceLandmarks(renderedImage)
+                
+                Log.d(TAG, "Angle ${index + 1}: detected ${landmarks.size} landmarks")
+                
+                if (landmarks.size > maxLandmarks) {
+                    Log.d(TAG, "New best result with ${landmarks.size} landmarks")
+                    
+                    // Step 3: Map 2D landmarks back to 3D model vertices
+                    val landmarkToVertexMapping = mapLandmarksTo3DVertices(landmarks, model, renderedImage.width, renderedImage.height)
+                    
+                    // Step 4: Extract face region from the full model
+                    val faceRegion = extractFaceRegion(model, landmarkToVertexMapping)
+                    
+                    // Step 5: Calculate face bounds and center
+                    val faceBounds = calculateModelFaceBounds(landmarks)
+                    val faceCenter = calculateModelFaceCenter(landmarks, model, landmarkToVertexMapping)
+                    val faceScale = calculateModelFaceScale(faceBounds)
+                    
+                    bestResult = Model3DFaceData(
+                        landmarks = landmarks,
+                        originalModel = model,
+                        faceRegion = faceRegion,
+                        landmarkToVertexMapping = landmarkToVertexMapping,
+                        faceBounds = faceBounds,
+                        faceCenter = faceCenter,
+                        faceScale = faceScale
+                    )
+                    maxLandmarks = landmarks.size
+                }
+                
+                // If we found a good amount of landmarks, we can stop early
+                if (landmarks.size >= 450) { // MediaPipe typically detects ~468 landmarks
+                    Log.d(TAG, "Found sufficient landmarks (${landmarks.size}), stopping scan")
+                    break
+                }
             }
             
-            // Step 3: Map 2D landmarks back to 3D model vertices
-            val landmarkToVertexMapping = mapLandmarksTo3DVertices(landmarks, model, renderedImage.width, renderedImage.height)
+            if (bestResult != null) {
+                Log.d(TAG, "Multi-angle analysis completed: best result has ${maxLandmarks} landmarks")
+            } else {
+                Log.w(TAG, "No face landmarks detected in any angle")
+            }
             
-            // Step 4: Extract face region from the full model
-            val faceRegion = extractFaceRegion(model, landmarkToVertexMapping)
-            
-            // Step 5: Calculate face bounds and center
-            val faceBounds = calculateModelFaceBounds(landmarks)
-            val faceCenter = calculateModelFaceCenter(landmarks, model, landmarkToVertexMapping)
-            val faceScale = calculateModelFaceScale(faceBounds)
-            
-            Log.d(TAG, "3D model face analysis completed: ${landmarks.size} landmarks, ${faceRegion.vertices.size} face vertices")
-            
-            Model3DFaceData(
-                landmarks = landmarks,
-                originalModel = model,
-                faceRegion = faceRegion,
-                landmarkToVertexMapping = landmarkToVertexMapping,
-                faceBounds = faceBounds,
-                faceCenter = faceCenter,
-                faceScale = faceScale
-            )
+            bestResult
             
         } catch (e: Exception) {
             Log.e(TAG, "Error analyzing 3D model face", e)
@@ -145,9 +175,145 @@ class Model3DFaceAnalyzer(private val context: Context) {
     }
     
     /**
-     * Render 3D model to a 2D image for MediaPipe analysis
+     * Render 3D model to a 2D image with rotation for MediaPipe analysis
+     */
+    private fun render3DModelToImageWithRotation(
+        model: Model3D, 
+        pitchDegrees: Float = 0f, 
+        yawDegrees: Float = 0f, 
+        rollDegrees: Float = 0f,
+        width: Int = 512, 
+        height: Int = 512
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        
+        // Clear background
+        canvas.drawColor(Color.BLACK)
+        
+        // Set up paint
+        val paint = Paint().apply {
+            color = Color.WHITE
+            strokeWidth = 2f
+            style = Paint.Style.FILL_AND_STROKE
+            isAntiAlias = true
+        }
+        
+        // Calculate model bounds for centering
+        val bounds = model.boundingBox
+        val modelWidth = bounds.second.x - bounds.first.x
+        val modelHeight = bounds.second.y - bounds.first.y
+        
+        // Calculate scale to fit model in image
+        val scale = minOf(width * 0.8f / modelWidth, height * 0.8f / modelHeight)
+        
+        // Center offset
+        val centerX = (bounds.first.x + bounds.second.x) / 2f
+        val centerY = (bounds.first.y + bounds.second.y) / 2f
+        val centerZ = (bounds.first.z + bounds.second.z) / 2f
+        
+        // Convert degrees to radians
+        val pitchRad = Math.toRadians(pitchDegrees.toDouble()).toFloat()
+        val yawRad = Math.toRadians(yawDegrees.toDouble()).toFloat()
+        val rollRad = Math.toRadians(rollDegrees.toDouble()).toFloat()
+        
+        // Render vertices with rotation
+        model.vertices.forEach { vertex ->
+            // Translate to origin
+            var x = vertex.x - centerX
+            var y = vertex.y - centerY
+            var z = vertex.z - centerZ
+            
+            // Apply rotations (yaw, pitch, roll)
+            val cosYaw = cos(yawRad)
+            val sinYaw = sin(yawRad)
+            val cosPitch = cos(pitchRad)
+            val sinPitch = sin(pitchRad)
+            val cosRoll = cos(rollRad)
+            val sinRoll = sin(rollRad)
+            
+            // Yaw rotation (around Y axis)
+            val x1 = x * cosYaw - z * sinYaw
+            val z1 = x * sinYaw + z * cosYaw
+            
+            // Pitch rotation (around X axis)
+            val y2 = y * cosPitch - z1 * sinPitch
+            val z2 = y * sinPitch + z1 * cosPitch
+            
+            // Roll rotation (around Z axis)
+            val x3 = x1 * cosRoll - y2 * sinRoll
+            val y3 = x1 * sinRoll + y2 * cosRoll
+            
+            // Project to screen coordinates
+            val screenX = x3 * scale + width / 2f
+            val screenY = y3 * scale + height / 2f
+            
+            if (screenX >= 0 && screenX < width && screenY >= 0 && screenY < height) {
+                canvas.drawCircle(screenX, screenY, 2f, paint)
+            }
+        }
+        
+        // Render faces as wireframe with same rotation
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1f
+        
+        model.faces.forEach { face ->
+            val vertices = listOf(
+                model.vertices[face.v1],
+                model.vertices[face.v2], 
+                model.vertices[face.v3]
+            )
+            
+            val transformedVertices = vertices.map { vertex ->
+                // Apply same transformation
+                var x = vertex.x - centerX
+                var y = vertex.y - centerY
+                var z = vertex.z - centerZ
+                
+                // Rotations
+                val cosYaw = cos(yawRad)
+                val sinYaw = sin(yawRad)
+                val cosPitch = cos(pitchRad)
+                val sinPitch = sin(pitchRad)
+                val cosRoll = cos(rollRad)
+                val sinRoll = sin(rollRad)
+                
+                val x1 = x * cosYaw - z * sinYaw
+                val z1 = x * sinYaw + z * cosYaw
+                val y2 = y * cosPitch - z1 * sinPitch
+                val z2 = y * sinPitch + z1 * cosPitch
+                val x3 = x1 * cosRoll - y2 * sinRoll
+                val y3 = x1 * sinRoll + y2 * cosRoll
+                
+                Pair(x3 * scale + width / 2f, y3 * scale + height / 2f)
+            }
+            
+            // Draw triangle edges
+            for (i in 0 until 3) {
+                val j = (i + 1) % 3
+                canvas.drawLine(
+                    transformedVertices[i].first, transformedVertices[i].second,
+                    transformedVertices[j].first, transformedVertices[j].second,
+                    paint
+                )
+            }
+        }
+        
+        Log.d(TAG, "Rendered 3D model to ${width}x${height} image with rotation (pitch=$pitchDegrees°, yaw=$yawDegrees°, roll=$rollDegrees°)")
+        return bitmap
+    }
+
+    /**
+     * Render 3D model to a 2D image for MediaPipe analysis (original method for backward compatibility)
      */
     private fun render3DModelToImage(model: Model3D, width: Int = 512, height: Int = 512): Bitmap {
+        return render3DModelToImageWithRotation(model, 0f, 0f, 0f, width, height)
+    }
+
+    /**
+     * Create a preview thumbnail of the 3D model for the UI
+     */
+    fun createModelPreview(model: Model3D, width: Int = 128, height: Int = 128): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         
@@ -208,7 +374,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
             canvas.drawLine(x3, y3, x1, y1, paint)
         }
         
-        Log.d(TAG, "Rendered 3D model to ${width}x${height} image")
+        Log.d(TAG, "Created preview of 3D model: ${width}x${height} image")
         return bitmap
     }
     
