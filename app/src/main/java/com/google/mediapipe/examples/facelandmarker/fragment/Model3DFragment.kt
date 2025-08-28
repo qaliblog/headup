@@ -49,7 +49,7 @@ class Model3DFragment : Fragment() {
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var fileUploadHelper: FileUploadHelper
     private lateinit var modelStorageManager: ModelStorageManager
-    private val model3DParser = Model3DParser()
+    private lateinit var model3DParser: Model3DParser
 
     // Coroutine scope for background processing
     private val fragmentScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -74,6 +74,7 @@ class Model3DFragment : Fragment() {
         )
         
         modelStorageManager = ModelStorageManager(requireContext())
+        model3DParser = Model3DParser(requireContext())
 
         // Set up UI event listeners
         setupUI()

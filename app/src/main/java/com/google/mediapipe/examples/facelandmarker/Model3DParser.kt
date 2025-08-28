@@ -56,7 +56,8 @@ data class Model3D(
     val vertices: List<Vertex3D>,
     val faces: List<Face3D>,
     val centroid: Vertex3D,
-    val boundingBox: Pair<Vertex3D, Vertex3D> // min, max
+    val boundingBox: Pair<Vertex3D, Vertex3D>, // min, max
+    val faceData: Model3DFaceData? = null // Face analysis data if available
 ) {
     fun getScaleFactor(targetSize: Float = 1.0f): Float {
         val size = maxOf(
@@ -66,6 +67,9 @@ data class Model3D(
         )
         return targetSize / size
     }
+    
+    val hasFaceData: Boolean
+        get() = faceData != null
 }
 
 /**
@@ -131,11 +135,13 @@ data class GLTF(
 /**
  * Parser for 3D model files
  */
-class Model3DParser {
+class Model3DParser(private val context: android.content.Context) {
     
     companion object {
         private const val TAG = "Model3DParser"
     }
+    
+    private val faceAnalyzer = Model3DFaceAnalyzer(context)
     
     /**
      * Parse OBJ file content
@@ -166,7 +172,21 @@ class Model3DParser {
             val boundingBox = calculateBoundingBox(vertices)
             
             Log.d(TAG, "Parsed OBJ: ${vertices.size} vertices, ${faces.size} faces")
-            Model3D(vertices, faces, centroid, boundingBox)
+            
+            // Create initial model without face data
+            val initialModel = Model3D(vertices, faces, centroid, boundingBox)
+            
+            // Analyze for facial landmarks
+            Log.d(TAG, "Analyzing OBJ model for facial features...")
+            val faceData = faceAnalyzer.analyzeModel3DFace(initialModel)
+            
+            if (faceData != null) {
+                Log.d(TAG, "Face detected in OBJ model: ${faceData.landmarks.size} landmarks")
+                Model3D(vertices, faces, centroid, boundingBox, faceData)
+            } else {
+                Log.w(TAG, "No face detected in OBJ model")
+                initialModel
+            }
             
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing OBJ file", e)
@@ -384,7 +404,21 @@ class Model3DParser {
             val boundingBox = calculateBoundingBox(allVertices)
             
             Log.d(TAG, "GLB parsed: ${allVertices.size} vertices, ${allFaces.size} faces")
-            return Model3D(allVertices, allFaces, centroid, boundingBox)
+            
+            // Create initial model without face data
+            val initialModel = Model3D(allVertices, allFaces, centroid, boundingBox)
+            
+            // Analyze for facial landmarks
+            Log.d(TAG, "Analyzing GLB model for facial features...")
+            val faceData = faceAnalyzer.analyzeModel3DFace(initialModel)
+            
+            if (faceData != null) {
+                Log.d(TAG, "Face detected in GLB model: ${faceData.landmarks.size} landmarks")
+                return Model3D(allVertices, allFaces, centroid, boundingBox, faceData)
+            } else {
+                Log.w(TAG, "No face detected in GLB model")
+                return initialModel
+            }
             
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting mesh from GLTF", e)

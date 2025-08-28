@@ -44,9 +44,11 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     
     // 3D model rendering components
     private val model3DRenderer = Model3DRenderer()
+    private val landmarkAlignedRenderer = LandmarkAlignedRenderer() // New landmark-based renderer
     private val headDirectionCalculator = HeadDirectionCalculator()
     private var show3DModel = false
     private var debugMode = false // Show both face mesh AND 3D model for testing
+    private var useLandmarkAlignment = true // Use landmark-based alignment when available
 
     init {
         initPaints()
@@ -103,12 +105,15 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                 val faceWidth = faceBounds.width() * scaleFactor
                 val faceHeight = faceBounds.height() * scaleFactor
                 
-                // Choose rendering mode: 3D model replacement, debug mode, or face landmarks/mesh
-                if (show3DModel && model3DRenderer.hasModel()) {
-                    // 3D Model Mode: Replace face mesh with 3D model (or show both in debug mode)
+                // Choose rendering mode: landmark-aligned, standard 3D model, or face landmarks/mesh
+                if (show3DModel && (landmarkAlignedRenderer.hasModel() || model3DRenderer.hasModel())) {
+                    // Determine which renderer to use
+                    val useAdvancedRenderer = useLandmarkAlignment && landmarkAlignedRenderer.hasModel()
+                    val rendererType = if (useAdvancedRenderer) "landmark-aligned" else "standard"
+                    
                     try {
                         val modeText = if (debugMode) "with face mesh (debug)" else "instead of face mesh"
-                        Log.d("OverlayView", "Rendering 3D model $modeText - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                        Log.d("OverlayView", "Rendering $rendererType 3D model $modeText")
                         
                         // Show face mesh in debug mode or as fallback
                         if (debugMode) {
@@ -116,23 +121,54 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                             drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
                         }
                         
-                        // Update renderer with face parameters for proper scaling and positioning
-                        model3DRenderer.updateFaceParameters(faceWidth, faceHeight, scaleFactor, offsetX, offsetY)
+                        var renderingSuccessful = false
                         
-                        val headPose = headDirectionCalculator.calculateHeadPose(faceLandmarkerResult)
-                        headPose?.let { pose ->
-                            Log.d("OverlayView", "Head pose calculated: center=${pose.center}, direction=${pose.direction}")
-                            Log.d("OverlayView", "Face dimensions: width=$faceWidth, height=$faceHeight")
-                            model3DRenderer.updateHeadPose(pose)
-                            model3DRenderer.render(canvas, pointPaint)
-                        } ?: run {
-                            Log.w("OverlayView", "Could not calculate head pose, falling back to face mesh")
-                            // Fallback to face mesh if head pose calculation fails and not already showing
-                            if (!debugMode) {
-                                drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
-                                drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                        if (useAdvancedRenderer) {
+                            // Use landmark-aligned renderer
+                            landmarkAlignedRenderer.updateFaceParameters(
+                                viewportWidth = width,
+                                viewportHeight = height,
+                                scaleFactor = scaleFactor,
+                                offsetX = offsetX,
+                                offsetY = offsetY
+                            )
+                            
+                            // Update alignment with current face landmarks
+                            val alignmentUpdated = landmarkAlignedRenderer.updateAlignment(faceLandmarks)
+                            
+                            if (alignmentUpdated) {
+                                renderingSuccessful = landmarkAlignedRenderer.render(canvas, pointPaint)
+                                Log.d("OverlayView", "Landmark-aligned rendering: ${if (renderingSuccessful) "success" else "failed"}")
+                                
+                                if (debugMode) {
+                                    // Show alignment info
+                                    val alignmentInfo = landmarkAlignedRenderer.getAlignmentInfo()
+                                    Log.d("OverlayView", "Alignment info: $alignmentInfo")
+                                }
+                            } else {
+                                Log.w("OverlayView", "Failed to update landmark alignment")
                             }
                         }
+                        
+                        // Fallback to standard renderer if landmark alignment fails
+                        if (!renderingSuccessful && model3DRenderer.hasModel()) {
+                            Log.d("OverlayView", "Falling back to standard 3D renderer")
+                            model3DRenderer.updateFaceParameters(faceWidth, faceHeight, scaleFactor, offsetX, offsetY)
+                            
+                            val headPose = headDirectionCalculator.calculateHeadPose(faceLandmarkerResult)
+                            headPose?.let { pose ->
+                                model3DRenderer.updateHeadPose(pose)
+                                renderingSuccessful = model3DRenderer.render(canvas, pointPaint)
+                            }
+                        }
+                        
+                        // Final fallback to face mesh
+                        if (!renderingSuccessful && !debugMode) {
+                            Log.w("OverlayView", "All 3D rendering failed, showing face mesh")
+                            drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
+                            drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
+                        }
+                        
                     } catch (e: Exception) {
                         Log.e("OverlayView", "Error rendering 3D model, falling back to face mesh", e)
                         // Fallback to face mesh if 3D rendering fails and not already showing
@@ -143,7 +179,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                     }
                 } else {
                     // Face Mesh Mode: Draw traditional face landmarks and connectors
-                    Log.d("OverlayView", "Rendering face mesh - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}")
+                    Log.d("OverlayView", "Rendering face mesh - show3DModel: $show3DModel, hasModel: ${model3DRenderer.hasModel()}, hasLandmarkModel: ${landmarkAlignedRenderer.hasModel()}")
                     drawFaceLandmarks(canvas, faceLandmarks, offsetX, offsetY)
                     drawFaceConnectors(canvas, faceLandmarks, offsetX, offsetY)
                 }
@@ -243,7 +279,18 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
      * Set a 3D model to render over the face
      */
     fun set3DModel(model: Model3D) {
+        // Try to set model in landmark-aligned renderer first
+        val landmarkRendererSet = landmarkAlignedRenderer.setModel(model)
+        
+        // Always set in standard renderer as fallback
         model3DRenderer.setModel(model)
+        
+        if (landmarkRendererSet) {
+            Log.d("OverlayView", "Model set in landmark-aligned renderer (${model.faceData?.landmarks?.size} landmarks)")
+        } else {
+            Log.d("OverlayView", "Model set in standard renderer (no face data)")
+        }
+        
         show3DModel = true
         invalidate()
     }

@@ -43,7 +43,7 @@ class ModelLibraryFragment : Fragment() {
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var modelStorageManager: ModelStorageManager
     private lateinit var storedModelsAdapter: StoredModelsAdapter
-    private val model3DParser = Model3DParser()
+    private lateinit var model3DParser: Model3DParser
 
     // Coroutine scope for background operations
     private val fragmentScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -62,6 +62,7 @@ class ModelLibraryFragment : Fragment() {
 
         // Initialize storage manager
         modelStorageManager = ModelStorageManager(requireContext())
+        model3DParser = Model3DParser(requireContext())
 
         // Set up RecyclerView
         setupRecyclerView()
