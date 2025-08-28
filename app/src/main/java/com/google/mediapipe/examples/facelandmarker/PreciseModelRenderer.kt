@@ -200,11 +200,11 @@ class PreciseModelRenderer {
         // Convert vertex to normalized coordinates (same as landmarks)
         val normalizedVertex = normalizeVertex(vertex)
         
-        // Apply scale
+        // Apply separate X and Y scaling for proper stretching
         val scaled = Vertex3D(
-            normalizedVertex.x * transform.scale,
-            normalizedVertex.y * transform.scale,
-            normalizedVertex.z * transform.scale
+            normalizedVertex.x * transform.scaleX, // Use separate X scale
+            normalizedVertex.y * transform.scaleY, // Use separate Y scale  
+            normalizedVertex.z * transform.scale   // Use uniform Z scale
         )
         
         // Apply rotation (simplified for now)
@@ -326,7 +326,8 @@ class PreciseModelRenderer {
         
         val info = "Confidence: ${String.format("%.3f", alignment.confidence)} | " +
                   "Mappings: ${alignment.mappings.size} | " +
-                  "Scale: ${String.format("%.2f", alignment.transform.scale)}"
+                  "Scale: ${String.format("%.2f", alignment.transform.scale)} " +
+                  "(X:${String.format("%.2f", alignment.transform.scaleX)}, Y:${String.format("%.2f", alignment.transform.scaleY)})"
         
         canvas.drawText(info, 20f, screenHeight - 40f, textPaint)
     }

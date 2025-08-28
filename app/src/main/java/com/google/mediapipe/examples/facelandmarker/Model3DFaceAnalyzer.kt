@@ -118,25 +118,29 @@ class Model3DFaceAnalyzer(private val context: Context) {
             
             // Smart angle ordering: test most likely angles first for faster detection
             val priorityAngles = listOf(
-                // Tier 1: Most common orientations (90% of models)
-                Triple(0f, 0f, 0f),       // Front view (most common)
-                Triple(0f, 180f, 0f),     // Back view (common for imported models)
-                Triple(0f, 0f, 180f),     // Upside down (very common)
-                Triple(90f, 0f, 0f),      // Face on top
-                Triple(-90f, 0f, 0f),     // Face on bottom
+                // Tier 1: Most common CORRECT orientations (90% of models should be upright)
+                Triple(0f, 0f, 0f),       // Front view (most common - upright)
+                Triple(90f, 0f, 0f),      // Face on top (model lying down)
+                Triple(-90f, 0f, 0f),     // Face on bottom (model lying down)
+                Triple(0f, 180f, 0f),     // Back view (facing away but upright)
+                Triple(180f, 0f, 0f),     // Completely flipped vertically (but not rolled)
             )
             
             val secondaryAngles = listOf(
-                // Tier 2: Common variations (8% of models)
+                // Tier 2: Side views and slight rotations (8% of models)
                 Triple(0f, 90f, 0f),      // Right side
                 Triple(0f, -90f, 0f),     // Left side
                 Triple(0f, 0f, 90f),      // Rolled right
                 Triple(0f, 0f, -90f),     // Rolled left
-                Triple(180f, 0f, 0f),     // Completely flipped vertically
+            )
+            
+            val problematicAngles = listOf(
+                // Tier 3: Problematic orientations (often false positives)
+                Triple(0f, 0f, 180f),     // Upside down (causes false detection)
             )
             
             val fineAngles = listOf(
-                // Tier 3: Fine adjustments (1.5% of models)
+                // Tier 4: Fine adjustments (1.5% of models)
                 Triple(0f, 15f, 0f),      // Slightly right
                 Triple(0f, -15f, 0f),     // Slightly left
                 Triple(15f, 0f, 0f),      // Slightly up
@@ -146,7 +150,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
             )
             
             val extremeAngles = listOf(
-                // Tier 4: Rare cases (0.5% of models)
+                // Tier 5: Rare cases (0.5% of models)
                 Triple(45f, 45f, 0f),     // Diagonal orientations
                 Triple(45f, -45f, 0f),
                 Triple(-45f, 45f, 0f),
@@ -157,12 +161,13 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 Triple(-90f, -90f, 0f)
             )
             
-            // Combine in priority order (limit angles in quick mode)
+            // Combine in priority order (limit angles in quick mode, avoid problematic ones)
             val angles = if (quickMode) {
-                Log.d(TAG, "Quick mode: testing only priority angles")
+                Log.d(TAG, "Quick mode: testing only priority angles (avoiding problematic orientations)")
                 priorityAngles
             } else {
-                priorityAngles + secondaryAngles + fineAngles + extremeAngles
+                Log.d(TAG, "Full mode: testing all angles including problematic ones as last resort")
+                priorityAngles + secondaryAngles + fineAngles + extremeAngles + problematicAngles
             }
             
             Log.d(TAG, "Testing ${angles.size} different angles for ${if (quickMode) "quick" else "comprehensive"} face detection")
@@ -273,7 +278,14 @@ class Model3DFaceAnalyzer(private val context: Context) {
             if (bestResult != null && bestAngle != null) {
                 Log.d(TAG, "✅ Multi-angle analysis SUCCESS: ${maxLandmarks} landmarks detected!")
                 Log.d(TAG, "🎯 Best angle found: pitch=${bestAngle.first}°, yaw=${bestAngle.second}°, roll=${bestAngle.third}°")
-                Log.d(TAG, "💡 IMPORTANT: Your model face is oriented at this angle - this might explain why face detection failed before!")
+                
+                // Check if model was detected upside down and warn user
+                if (bestAngle.third == 180f) {
+                    Log.w(TAG, "⚠️ WARNING: Model detected upside down (180° roll) - this may be a false positive!")
+                    Log.w(TAG, "💡 SUGGESTION: Try rotating your 3D model file 180° before importing")
+                } else {
+                    Log.d(TAG, "💡 GOOD: Model detected in reasonable orientation - should render correctly!")
+                }
             } else {
                 Log.w(TAG, "❌ No face landmarks detected in ANY of the ${angles.size} angles tested")
                 Log.w(TAG, "🔍 This suggests the model either:")

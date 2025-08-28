@@ -81,6 +81,8 @@ class PreciseLandmarkAligner {
     
     data class TransformMatrix(
         val scale: Float,
+        val scaleX: Float = scale, // Allow separate X scaling for stretching
+        val scaleY: Float = scale, // Allow separate Y scaling for stretching
         val rotation: RotationMatrix,
         val translation: Vector3D
     )
@@ -124,16 +126,16 @@ class PreciseLandmarkAligner {
             val headDirectionTransform = calculateHeadDirectionAlignment(correspondences)
             
             // Step 3: Calculate precise scale using multiple reference distances
-            val scale = calculatePreciseScale(correspondences)
+            val (scale, scaleX, scaleY) = calculatePreciseScaleWithStretching(correspondences)
             
             // Step 4: Fine-tune with all landmark correspondences
-            val fineTunedTransform = fineTuneAlignment(correspondences, headDirectionTransform, scale)
+            val fineTunedTransform = fineTuneAlignment(correspondences, headDirectionTransform, scale, scaleX, scaleY)
             
             // Step 5: Calculate confidence based on alignment quality
             val confidence = calculateAlignmentConfidence(correspondences, fineTunedTransform)
             
             Log.d(TAG, "🎯 Precise alignment complete:")
-            Log.d(TAG, "   Scale: ${fineTunedTransform.scale}")
+            Log.d(TAG, "   Scale: ${fineTunedTransform.scale} (X: ${fineTunedTransform.scaleX}, Y: ${fineTunedTransform.scaleY})")
             Log.d(TAG, "   Rotation: pitch=${fineTunedTransform.rotation.pitch}°, yaw=${fineTunedTransform.rotation.yaw}°, roll=${fineTunedTransform.rotation.roll}°")
             Log.d(TAG, "   Translation: ${fineTunedTransform.translation}")
             Log.d(TAG, "   Confidence: ${String.format("%.3f", confidence)}")
@@ -355,11 +357,14 @@ class PreciseLandmarkAligner {
     }
     
     /**
-     * Calculate precise scale using multiple reference distances
+     * Calculate precise scale with proper stretching for face dimensions
+     * Returns Triple(scale, scaleX, scaleY) for uniform and directional scaling
      */
-    private fun calculatePreciseScale(correspondences: List<LandmarkPair>): Float {
+    private fun calculatePreciseScaleWithStretching(correspondences: List<LandmarkPair>): Triple<Float, Float, Float> {
         
         val scaleFactors = mutableListOf<Float>()
+        val horizontalScales = mutableListOf<Float>()
+        val verticalScales = mutableListOf<Float>()
         
         // Calculate scale using various facial feature distances
         for (i in correspondences.indices) {
@@ -374,7 +379,23 @@ class PreciseLandmarkAligner {
                     val scale = faceDist / modelDist
                     val weight = (pair1.weight + pair2.weight) / 2f
                     
-                    // Add weighted scale factor
+                    // Determine if this is horizontal or vertical measurement
+                    val deltaX = abs(pair1.facePoint.x - pair2.facePoint.x)
+                    val deltaY = abs(pair1.facePoint.y - pair2.facePoint.y)
+                    
+                    if (deltaX > deltaY) {
+                        // Primarily horizontal measurement (like eye-to-eye distance)
+                        repeat(weight.toInt().coerceAtLeast(1)) {
+                            horizontalScales.add(scale)
+                        }
+                    } else {
+                        // Primarily vertical measurement (like forehead-to-chin)
+                        repeat(weight.toInt().coerceAtLeast(1)) {
+                            verticalScales.add(scale)
+                        }
+                    }
+                    
+                    // Add to overall scale factors
                     repeat(weight.toInt().coerceAtLeast(1)) {
                         scaleFactors.add(scale)
                     }
@@ -382,21 +403,47 @@ class PreciseLandmarkAligner {
             }
         }
         
-        return if (scaleFactors.isNotEmpty()) {
-            // Use median for robustness
-            scaleFactors.sorted()[scaleFactors.size / 2]
+        val (finalScale, finalScaleX, finalScaleY) = if (scaleFactors.isNotEmpty()) {
+            // Calculate overall scale
+            val medianScale = scaleFactors.sorted()[scaleFactors.size / 2]
+            val zoomedOutScale = medianScale * 0.3f // Start 30% of calculated size (more zoomed out)
+            
+            // Calculate separate X and Y scales for stretching
+            val scaleX = if (horizontalScales.isNotEmpty()) {
+                val medianX = horizontalScales.sorted()[horizontalScales.size / 2]
+                (medianX * 0.3f).coerceIn(0.1f, 3.0f) // Allow more horizontal stretching
+            } else {
+                zoomedOutScale
+            }
+            
+            val scaleY = if (verticalScales.isNotEmpty()) {
+                val medianY = verticalScales.sorted()[verticalScales.size / 2]
+                (medianY * 0.3f).coerceIn(0.1f, 3.0f) // Allow more vertical stretching
+            } else {
+                zoomedOutScale
+            }
+            
+            Triple(
+                zoomedOutScale.coerceIn(0.1f, 2.0f), // Overall scale
+                scaleX, // Horizontal scale
+                scaleY  // Vertical scale
+            )
         } else {
-            1.0f
+            Triple(0.2f, 0.2f, 0.2f) // Default very small size if no correspondences
         }
+        
+        return Triple(finalScale, finalScaleX, finalScaleY)
     }
     
     /**
-     * Fine-tune alignment using all correspondences
+     * Fine-tune alignment using all correspondences with separate X/Y scaling
      */
     private fun fineTuneAlignment(
         correspondences: List<LandmarkPair>,
         initialTransform: TransformMatrix,
-        scale: Float
+        scale: Float,
+        scaleX: Float,
+        scaleY: Float
     ): TransformMatrix {
         
         // Calculate weighted centroid translation
@@ -419,6 +466,8 @@ class PreciseLandmarkAligner {
         
         return TransformMatrix(
             scale = scale,
+            scaleX = scaleX,
+            scaleY = scaleY,
             rotation = initialTransform.rotation,
             translation = translation
         )
