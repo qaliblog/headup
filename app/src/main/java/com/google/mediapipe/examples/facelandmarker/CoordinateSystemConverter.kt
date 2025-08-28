@@ -75,13 +75,19 @@ object CoordinateSystemConverter {
         val normalizedY = if (height > 0) (vertex.y - minBound.y) / height else 0.5f
         val normalizedZ = if (depth > 0) (vertex.z - minBound.z) / depth else 0.5f
         
-        // Create normalized landmark (MediaPipe format)
+        // For coordinate conversion, we'll return a simple data structure
+        // instead of creating a MediaPipe NormalizedLandmark directly
+        // This will be used internally for coordinate calculations
         return object : NormalizedLandmark {
-            override fun x(): Float = normalizedX.coerceIn(0f, 1f)
-            override fun y(): Float = normalizedY.coerceIn(0f, 1f)
-            override fun z(): Float? = normalizedZ.coerceIn(0f, 1f)
-            override fun visibility(): Float? = 1.0f
-            override fun presence(): Float? = 1.0f
+            private val x = normalizedX.coerceIn(0f, 1f)
+            private val y = normalizedY.coerceIn(0f, 1f) 
+            private val z = normalizedZ.coerceIn(0f, 1f)
+            
+            override fun x(): Float = x
+            override fun y(): Float = y
+            override fun z(): Float = z
+            override fun visibility(): java.util.Optional<Float> = java.util.Optional.of(1.0f)
+            override fun presence(): java.util.Optional<Float> = java.util.Optional.of(1.0f)
         }
     }
     
