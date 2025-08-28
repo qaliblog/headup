@@ -202,10 +202,11 @@ class LandmarkAlignedRenderer {
         val originalStrokeWidth = paint.strokeWidth
         
         try {
-            // Render main model wireframe
-            paint.color = Color.CYAN
-            paint.strokeWidth = 2f
+            // Render main model wireframe with enhanced visibility
+            paint.color = Color.YELLOW // More visible color
+            paint.strokeWidth = 4f // Thicker lines
             paint.style = Paint.Style.STROKE
+            paint.isAntiAlias = true
             
             model.faces.forEach { face ->
                 if (face.v1 < transformedVertices.size && 
@@ -222,6 +223,9 @@ class LandmarkAlignedRenderer {
                 }
             }
             
+            // Render model bounding box for debugging
+            renderModelBoundingBox(canvas, transformedVertices, paint)
+            
             // Highlight landmark correspondences if in debug mode
             if (shouldShowCorrespondences()) {
                 renderLandmarkCorrespondences(canvas, alignment.correspondences)
@@ -232,6 +236,50 @@ class LandmarkAlignedRenderer {
             paint.color = originalColor
             paint.strokeWidth = originalStrokeWidth
         }
+    }
+    
+    /**
+     * Render model bounding box for debugging visibility
+     */
+    private fun renderModelBoundingBox(
+        canvas: Canvas,
+        transformedVertices: List<PointF>,
+        paint: Paint
+    ) {
+        if (transformedVertices.isEmpty()) return
+        
+        // Find bounding box of transformed vertices
+        var minX = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var minY = Float.MAX_VALUE
+        var maxY = Float.MIN_VALUE
+        
+        transformedVertices.forEach { point ->
+            minX = minOf(minX, point.x)
+            maxX = maxOf(maxX, point.x)
+            minY = minOf(minY, point.y)
+            maxY = maxOf(maxY, point.y)
+        }
+        
+        // Draw bounding box
+        val boundingBoxPaint = Paint(paint).apply {
+            color = Color.RED
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
+        }
+        
+        canvas.drawRect(minX, minY, maxX, maxY, boundingBoxPaint)
+        
+        // Draw center point
+        val centerX = (minX + maxX) / 2f
+        val centerY = (minY + maxY) / 2f
+        val centerPaint = Paint(paint).apply {
+            color = Color.RED
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(centerX, centerY, 8f, centerPaint)
+        
+        Log.d(TAG, "Model bounding box: ($minX, $minY) to ($maxX, $maxY), center: ($centerX, $centerY)")
     }
     
     /**

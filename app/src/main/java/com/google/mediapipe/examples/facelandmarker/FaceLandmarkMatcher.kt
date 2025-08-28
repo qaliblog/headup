@@ -325,7 +325,7 @@ class FaceLandmarkMatcher {
             val averageScale = if (count > 0 && modelDistanceSum > 0) {
                 realDistanceSum / modelDistanceSum
             } else {
-                0.5f // Conservative fallback scale
+                0.2f // Much smaller fallback scale
             }
             scaleFactors.add(averageScale)
             Log.d(TAG, "Fallback scale factor: $averageScale")
@@ -335,16 +335,20 @@ class FaceLandmarkMatcher {
         val finalScale = if (scaleFactors.isNotEmpty()) {
             scaleFactors.sorted()[scaleFactors.size / 2]
         } else {
-            0.5f
+            0.2f // Smaller default scale
         }
         
         // Clamp scale to reasonable bounds (prevent too large/small models)
-        val clampedScale = finalScale.coerceIn(0.1f, 2.0f)
+        // Reduce upper bound to prevent oversized models
+        val clampedScale = finalScale.coerceIn(0.05f, 0.5f)
         
-        Log.d(TAG, "Final scale factor: $clampedScale (from ${scaleFactors.size} measurements)")
+        // Apply additional scale reduction for better fit
+        val finalAdjustedScale = clampedScale * 0.3f // Further reduce by 70%
+        
+        Log.d(TAG, "Final scale factor: $finalAdjustedScale (from ${scaleFactors.size} measurements, original: $clampedScale)")
         
         // Use uniform scaling for face models
-        return Vertex3D(clampedScale, clampedScale, clampedScale)
+        return Vertex3D(finalAdjustedScale, finalAdjustedScale, finalAdjustedScale)
     }
     
     private fun calculateEyeToEyeScale(correspondences: List<LandmarkCorrespondence>): Float {
