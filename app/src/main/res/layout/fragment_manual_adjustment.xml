@@ -23,6 +23,43 @@
             android:gravity="center"
             android:layout_marginBottom="16dp" />
 
+        <!-- 3D Model Preview -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_marginBottom="16dp"
+            android:background="@android:color/black">
+
+            <com.google.mediapipe.examples.facelandmarker.Model3DPreviewView
+                android:id="@+id/model_preview_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <TextView
+                android:id="@+id/text_preview_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="Load a model to preview"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:background="@android:color/transparent" />
+
+            <Button
+                android:id="@+id/button_toggle_rendering"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="8dp"
+                android:text="Fill"
+                android:textSize="12sp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:padding="8dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+        </FrameLayout>
+
         <TextView
             android:id="@+id/text_model_status"
             android:layout_width="match_parent"

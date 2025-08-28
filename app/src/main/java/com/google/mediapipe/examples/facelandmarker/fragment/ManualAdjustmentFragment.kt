@@ -159,6 +159,11 @@ class ManualAdjustmentFragment : Fragment() {
             saveLandmarkData()
         }
         
+        // Preview controls
+        fragmentManualAdjustmentBinding.buttonToggleRendering.setOnClickListener {
+            toggleRenderingMode()
+        }
+        
         fragmentManualAdjustmentBinding.buttonDetectLandmarks.setOnClickListener {
             triggerLandmarkDetection()
         }
@@ -216,13 +221,18 @@ class ManualAdjustmentFragment : Fragment() {
     }
     
     private fun observeViewModel() {
+        // Observe 3D model changes
         viewModel.current3DModel.observe(viewLifecycleOwner) { model ->
             val hasModel = model != null
             fragmentManualAdjustmentBinding.buttonApplyToModel.isEnabled = hasModel
             fragmentManualAdjustmentBinding.buttonDetectLandmarks.isEnabled = hasModel
             
+            // Update preview view
+            fragmentManualAdjustmentBinding.modelPreviewView.setModel(model)
+            
             if (hasModel) {
                 fragmentManualAdjustmentBinding.textModelStatus.text = "Model loaded: ${model?.vertices?.size} vertices"
+                fragmentManualAdjustmentBinding.textPreviewStatus.text = "${model?.vertices?.size} vertices, ${model?.faces?.size} faces"
                 if (model?.hasFaceData == true) {
                     fragmentManualAdjustmentBinding.textLandmarkStatus.text = 
                         "Face detected: ${model.faceData?.landmarks?.size} landmarks"
@@ -232,6 +242,14 @@ class ManualAdjustmentFragment : Fragment() {
             } else {
                 fragmentManualAdjustmentBinding.textModelStatus.text = "No model loaded"
                 fragmentManualAdjustmentBinding.textLandmarkStatus.text = "Load a model first"
+                fragmentManualAdjustmentBinding.textPreviewStatus.text = "Load a model to preview"
+            }
+        }
+        
+        // Observe manual adjustments changes
+        viewModel.manualAdjustments.observe(viewLifecycleOwner) { adjustments ->
+            adjustments?.let {
+                fragmentManualAdjustmentBinding.modelPreviewView.applyAdjustments(it)
             }
         }
     }
@@ -242,7 +260,23 @@ class ManualAdjustmentFragment : Fragment() {
         Log.d(TAG, "   Offset: X=$manualOffsetX, Y=$manualOffsetY, Z=$manualOffsetZ")
         Log.d(TAG, "   Rotation: X=${manualRotationX}°, Y=${manualRotationY}°, Z=${manualRotationZ}°")
         
-        // TODO: Apply to renderer through ViewModel
+        // Create adjustment data
+        val adjustmentData = MainViewModel.ManualAdjustmentData(
+            scale = manualScale,
+            scaleX = manualScaleX,
+            scaleY = manualScaleY,
+            offsetX = manualOffsetX,
+            offsetY = manualOffsetY,
+            offsetZ = manualOffsetZ,
+            rotationX = manualRotationX,
+            rotationY = manualRotationY,
+            rotationZ = manualRotationZ
+        )
+        
+        // Update preview immediately for real-time feedback
+        fragmentManualAdjustmentBinding.modelPreviewView.applyAdjustments(adjustmentData)
+        
+        // Update ViewModel
         viewModel.setManualAdjustments(
             scale = manualScale,
             scaleX = manualScaleX,
@@ -378,6 +412,19 @@ class ManualAdjustmentFragment : Fragment() {
             Toast.makeText(requireContext(), 
                 "⚠️ No model loaded to apply adjustments", 
                 Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun toggleRenderingMode() {
+        val currentMode = fragmentManualAdjustmentBinding.buttonToggleRendering.text == "Fill"
+        if (currentMode) {
+            // Switch to wireframe mode
+            fragmentManualAdjustmentBinding.modelPreviewView.setRenderingMode(false)
+            fragmentManualAdjustmentBinding.buttonToggleRendering.text = "Wire"
+        } else {
+            // Switch to filled mode
+            fragmentManualAdjustmentBinding.modelPreviewView.setRenderingMode(true)
+            fragmentManualAdjustmentBinding.buttonToggleRendering.text = "Fill"
         }
     }
 }
