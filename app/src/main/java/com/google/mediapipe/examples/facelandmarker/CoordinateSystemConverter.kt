@@ -59,12 +59,12 @@ object CoordinateSystemConverter {
     }
     
     /**
-     * Convert 3D model vertex to MediaPipe normalized coordinates
+     * Convert 3D model vertex to normalized coordinates (as simple data structure)
      */
     fun modelVertexToNormalized(
         vertex: Vertex3D,
         modelBounds: Pair<Vertex3D, Vertex3D>
-    ): NormalizedLandmark {
+    ): NormalizedPoint3D {
         val (minBound, maxBound) = modelBounds
         
         val width = maxBound.x - minBound.x
@@ -75,29 +75,18 @@ object CoordinateSystemConverter {
         val normalizedY = if (height > 0) (vertex.y - minBound.y) / height else 0.5f
         val normalizedZ = if (depth > 0) (vertex.z - minBound.z) / depth else 0.5f
         
-        // For coordinate conversion, we'll return a simple data structure
-        // instead of creating a MediaPipe NormalizedLandmark directly
-        // This will be used internally for coordinate calculations
-        return object : NormalizedLandmark {
-            private val x = normalizedX.coerceIn(0f, 1f)
-            private val y = normalizedY.coerceIn(0f, 1f) 
-            private val z = normalizedZ.coerceIn(0f, 1f)
-            
-            override fun x(): Float = x
-            override fun y(): Float = y
-            override fun z(): Float = z
-            override fun visibility(): java.util.Optional<Float> = java.util.Optional.of(1.0f)
-            override fun presence(): java.util.Optional<Float> = java.util.Optional.of(1.0f)
-        }
+        return NormalizedPoint3D(
+            normalizedX.coerceIn(0f, 1f),
+            normalizedY.coerceIn(0f, 1f),
+            normalizedZ.coerceIn(0f, 1f)
+        )
     }
     
     /**
      * Convert normalized coordinates back to 3D model space
      */
     fun normalizedToModelVertex(
-        normalizedX: Float,
-        normalizedY: Float,
-        normalizedZ: Float = 0.5f,
+        normalized: NormalizedPoint3D,
         modelBounds: Pair<Vertex3D, Vertex3D>
     ): Vertex3D {
         val (minBound, maxBound) = modelBounds
@@ -107,9 +96,24 @@ object CoordinateSystemConverter {
         val depth = maxBound.z - minBound.z
         
         return Vertex3D(
-            minBound.x + normalizedX * width,
-            minBound.y + normalizedY * height,
-            minBound.z + normalizedZ * depth
+            minBound.x + normalized.x * width,
+            minBound.y + normalized.y * height,
+            minBound.z + normalized.z * depth
+        )
+    }
+    
+    /**
+     * Convert normalized coordinates back to 3D model space (with individual values)
+     */
+    fun normalizedToModelVertex(
+        normalizedX: Float,
+        normalizedY: Float,
+        normalizedZ: Float = 0.5f,
+        modelBounds: Pair<Vertex3D, Vertex3D>
+    ): Vertex3D {
+        return normalizedToModelVertex(
+            NormalizedPoint3D(normalizedX, normalizedY, normalizedZ),
+            modelBounds
         )
     }
     
@@ -298,6 +302,20 @@ object CoordinateSystemConverter {
         
         return if (totalWeight > 0) totalError / totalWeight else Float.MAX_VALUE
     }
+}
+
+/**
+ * Simple data class for normalized 3D coordinates [0,1]
+ */
+data class NormalizedPoint3D(
+    val x: Float,
+    val y: Float,
+    val z: Float
+) {
+    fun toVertex3D(): Vertex3D = Vertex3D(x, y, z)
+    
+    fun isValid(): Boolean = x.isFinite() && y.isFinite() && z.isFinite() &&
+                            x >= 0f && x <= 1f && y >= 0f && y <= 1f && z >= 0f && z <= 1f
 }
 
 /**
