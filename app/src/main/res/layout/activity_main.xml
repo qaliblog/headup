@@ -58,6 +58,8 @@
             android:layout_height="wrap_content"
             android:layout_below="@+id/toolbar"
             android:background="@android:color/white"
+            app:itemIconTint="@android:color/darker_gray"
+            app:itemTextColor="@android:color/darker_gray"
             app:menu="@menu/menu_bottom_nav" />
 
         <View
