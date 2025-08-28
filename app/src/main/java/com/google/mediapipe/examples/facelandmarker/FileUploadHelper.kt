@@ -87,16 +87,47 @@ class FileUploadHelper(
         try {
             val fileName = getFileName(uri)
             val fileExtension = fileName.substringAfterLast('.', "").lowercase()
+            val fileSize = getFileSize(uri)
             
-            if (fileExtension in SUPPORTED_3D_FORMATS) {
-                Log.d(TAG, "Selected 3D model file: $fileName")
-                onFileSelected(uri, fileName)
-            } else {
-                Log.w(TAG, "Unsupported file format: $fileExtension")
-                // You could show a toast or dialog here to inform the user
+            Log.d(TAG, "Selected file: $fileName (${fileSize} bytes, format: $fileExtension)")
+            
+            // Validate file format
+            if (fileExtension !in SUPPORTED_3D_FORMATS) {
+                Log.w(TAG, "Unsupported file format: $fileExtension. Supported: ${SUPPORTED_3D_FORMATS.joinToString()}")
+                return
             }
+            
+            // Validate file size (max 50MB)
+            if (fileSize > 50 * 1024 * 1024) {
+                Log.w(TAG, "File too large: ${fileSize} bytes (max 50MB)")
+                return
+            }
+            
+            // Validate file is accessible
+            if (!isFileAccessible(uri)) {
+                Log.w(TAG, "File not accessible: $uri")
+                return
+            }
+            
+            Log.d(TAG, "✅ File validation passed: $fileName")
+            onFileSelected(uri, fileName)
+            
         } catch (e: Exception) {
             Log.e(TAG, "Error handling selected file", e)
+        }
+    }
+    
+    /**
+     * Check if file is accessible and readable
+     */
+    private fun isFileAccessible(uri: Uri): Boolean {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { 
+                it.read() != -1 // Try to read at least one byte
+            } ?: false
+        } catch (e: Exception) {
+            Log.e(TAG, "File accessibility check failed", e)
+            false
         }
     }
     
@@ -141,11 +172,27 @@ class FileUploadHelper(
     
     /**
      * Read file content as string (useful for text-based formats like OBJ)
+     * Optimized with larger buffer for better performance
      */
     fun readFileContent(uri: Uri): String? {
         return try {
+            val fileSize = getFileSize(uri)
+            Log.d(TAG, "Reading file content, size: ${fileSize} bytes")
+            
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                inputStream.bufferedReader().readText()
+                // Use larger buffer for better performance
+                val bufferSize = if (fileSize > 0 && fileSize < 1024 * 1024) {
+                    // For files under 1MB, use file size as buffer
+                    fileSize.toInt()
+                } else {
+                    // For larger files or unknown size, use 64KB buffer
+                    64 * 1024
+                }
+                
+                val bufferedReader = inputStream.bufferedReader(bufferSize)
+                val content = bufferedReader.readText()
+                Log.d(TAG, "Successfully read ${content.length} characters")
+                content
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error reading file content", e)
@@ -155,11 +202,32 @@ class FileUploadHelper(
     
     /**
      * Read file content as byte array (useful for binary formats like GLB)
+     * Optimized with pre-allocated buffer based on file size
      */
     fun readFileBytes(uri: Uri): ByteArray? {
         return try {
+            val fileSize = getFileSize(uri)
+            Log.d(TAG, "Reading file bytes, size: ${fileSize} bytes")
+            
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                inputStream.readBytes()
+                if (fileSize > 0) {
+                    // Pre-allocate byte array with known size for better performance
+                    val buffer = ByteArray(fileSize.toInt())
+                    var totalRead = 0
+                    var bytesRead: Int
+                    
+                    while (totalRead < fileSize && inputStream.read(buffer, totalRead, (fileSize - totalRead).toInt()).also { bytesRead = it } != -1) {
+                        totalRead += bytesRead
+                    }
+                    
+                    Log.d(TAG, "Successfully read ${totalRead} bytes")
+                    if (totalRead == fileSize.toInt()) buffer else buffer.copyOf(totalRead)
+                } else {
+                    // Fallback for unknown file size
+                    val result = inputStream.readBytes()
+                    Log.d(TAG, "Successfully read ${result.size} bytes (unknown size)")
+                    result
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error reading file bytes", e)

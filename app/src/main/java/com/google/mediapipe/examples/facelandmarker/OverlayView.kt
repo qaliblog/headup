@@ -46,11 +46,13 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     private val model3DRenderer = Model3DRenderer()
     private val landmarkAlignedRenderer = LandmarkAlignedRenderer() // Landmark-based renderer
     private val progressiveRenderer = ProgressiveModelRenderer() // NEW: Weight point + progressive scaling
+    private val preciseRenderer = PreciseModelRenderer() // ULTRA-PRECISE: Direct landmark-to-landmark mapping
     private val headDirectionCalculator = HeadDirectionCalculator()
     private var show3DModel = false
     private var debugMode = false // Show both face mesh AND 3D model for testing
     private var useLandmarkAlignment = true // Use landmark-based alignment when available
-    private var useProgressiveRenderer = true // NEW: Use weight point approach
+    private var useProgressiveRenderer = false // Use progressive by default initially
+    private var usePreciseRenderer = true // NEW: Use ultra-precise landmark mapping
 
     init {
         initPaints()
@@ -107,12 +109,14 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                 val faceWidth = faceBounds.width() * scaleFactor
                 val faceHeight = faceBounds.height() * scaleFactor
                 
-                // Choose rendering mode: progressive weight-point, landmark-aligned, standard 3D model, or face landmarks/mesh
-                if (show3DModel && (progressiveRenderer.hasValidModel() || landmarkAlignedRenderer.hasModel() || model3DRenderer.hasModel())) {
+                // Choose rendering mode: precise landmark-to-landmark, progressive weight-point, landmark-aligned, standard 3D model, or face landmarks/mesh
+                if (show3DModel && (preciseRenderer.hasValidModel() || progressiveRenderer.hasValidModel() || landmarkAlignedRenderer.hasModel() || model3DRenderer.hasModel())) {
                     // Determine which renderer to use (priority order)
-                    val useProgressiveRenderer = this.useProgressiveRenderer && progressiveRenderer.hasValidModel()
-                    val useAdvancedRenderer = !useProgressiveRenderer && useLandmarkAlignment && landmarkAlignedRenderer.hasModel()
+                    val usePreciseRenderer = this.usePreciseRenderer && preciseRenderer.hasValidModel()
+                    val useProgressiveRenderer = !usePreciseRenderer && this.useProgressiveRenderer && progressiveRenderer.hasValidModel()
+                    val useAdvancedRenderer = !usePreciseRenderer && !useProgressiveRenderer && useLandmarkAlignment && landmarkAlignedRenderer.hasModel()
                     val rendererType = when {
+                        usePreciseRenderer -> "precise landmark-to-landmark"
                         useProgressiveRenderer -> "progressive weight-point"
                         useAdvancedRenderer -> "landmark-aligned"
                         else -> "standard"
@@ -130,7 +134,27 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                         
                         var renderingSuccessful = false
                         
-                        if (useProgressiveRenderer) {
+                        if (usePreciseRenderer) {
+                            // Use ultra-precise landmark-to-landmark renderer
+                            preciseRenderer.updateScreenParameters(
+                                width = width,
+                                height = height,
+                                scaleFactor = scaleFactor,
+                                offsetX = offsetX,
+                                offsetY = offsetY
+                            )
+                            
+                            // Update alignment with current face landmarks
+                            val alignmentUpdated = preciseRenderer.updateAlignment(faceLandmarks)
+                            
+                            if (alignmentUpdated) {
+                                renderingSuccessful = preciseRenderer.render(canvas, pointPaint)
+                                Log.d("OverlayView", "🎯 Precise rendering: ${if (renderingSuccessful) "success" else "failed"}")
+                            } else {
+                                Log.w("OverlayView", "⚠️ Failed to update precise alignment")
+                            }
+                            
+                        } else if (useProgressiveRenderer) {
                             // Use progressive weight-point renderer
                             progressiveRenderer.updateScreenParameters(
                                 width = width,
@@ -313,16 +337,22 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
      * Set a 3D model to render over the face
      */
     fun set3DModel(model: Model3D) {
-        // Try to set model in progressive renderer first (best option)
+        // Try to set model in precise renderer first (BEST option for landmark alignment)
+        val preciseRendererSet = preciseRenderer.setModel(model)
+        
+        // Try to set model in progressive renderer second
         val progressiveRendererSet = progressiveRenderer.setModel(model)
         
-        // Try to set model in landmark-aligned renderer second
+        // Try to set model in landmark-aligned renderer third
         val landmarkRendererSet = landmarkAlignedRenderer.setModel(model)
         
         // Always set in standard renderer as fallback
         model3DRenderer.setModel(model)
         
         when {
+            preciseRendererSet -> {
+                Log.d("OverlayView", "🎯 Model set in PRECISE landmark-to-landmark renderer (${model.faceData?.landmarks?.size} landmarks)")
+            }
             progressiveRendererSet -> {
                 Log.d("OverlayView", "Model set in progressive weight-point renderer (${model.faceData?.landmarks?.size} landmarks)")
             }

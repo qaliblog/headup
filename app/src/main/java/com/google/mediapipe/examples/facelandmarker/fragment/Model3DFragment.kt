@@ -118,7 +118,7 @@ class Model3DFragment : Fragment() {
     }
 
     private fun onFileSelected(uri: Uri, fileName: String) {
-        Log.d(TAG, "File selected: $fileName")
+        Log.d(TAG, "📁 File selected: $fileName")
         
         fragmentModel3dBinding.textModelStatus.text = "Processing file: $fileName"
         fragmentModel3dBinding.progressBar.visibility = View.VISIBLE
@@ -126,16 +126,33 @@ class Model3DFragment : Fragment() {
         // Get custom name from input field
         val customName = fragmentModel3dBinding.editCustomName.text.toString().trim()
         
-        // Process file in background
+        // Process file in background with progress updates
         fragmentScope.launch {
             try {
+                val startTime = System.currentTimeMillis()
+                
                 val (success, model3D) = withContext(Dispatchers.IO) {
-                    processAndStoreModelFile(uri, fileName, customName)
+                    processAndStoreModelFile(uri, fileName, customName) { stage, progress ->
+                        // Update UI on main thread
+                        launch(Dispatchers.Main) {
+                            fragmentModel3dBinding.textModelStatus.text = "$stage... $progress%"
+                        }
+                    }
                 }
                 
+                val loadTime = System.currentTimeMillis() - startTime
+                
                 if (success && model3D != null) {
-                    fragmentModel3dBinding.textModelStatus.text = "Model stored and loaded: ${customName.ifBlank { fileName }}"
-                    Toast.makeText(requireContext(), "3D model stored successfully!", Toast.LENGTH_SHORT).show()
+                    val faceDetectionStatus = if (model3D.hasFaceData) {
+                        "✅ Face detected (${model3D.faceData?.landmarks?.size} landmarks)"
+                    } else {
+                        "⚠️ No face detected - will use basic alignment"
+                    }
+                    
+                    fragmentModel3dBinding.textModelStatus.text = "Model loaded in ${loadTime}ms! $faceDetectionStatus"
+                    Toast.makeText(requireContext(), 
+                        "🎯 Model loaded: ${customName.ifBlank { fileName }} (${loadTime}ms)", 
+                        Toast.LENGTH_LONG).show()
                     
                     // Clear the custom name field for next upload
                     fragmentModel3dBinding.editCustomName.text?.clear()
@@ -148,7 +165,7 @@ class Model3DFragment : Fragment() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing model file", e)
-                fragmentModel3dBinding.textModelStatus.text = "Error processing model"
+                fragmentModel3dBinding.textModelStatus.text = "Error: ${e.message}"
                 Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 fragmentModel3dBinding.progressBar.visibility = View.GONE
@@ -157,15 +174,24 @@ class Model3DFragment : Fragment() {
         }
     }
 
-    private suspend fun processAndStoreModelFile(uri: Uri, fileName: String, customName: String): Pair<Boolean, Model3D?> {
+    private suspend fun processAndStoreModelFile(
+        uri: Uri, 
+        fileName: String, 
+        customName: String,
+        progressCallback: ((String, Int) -> Unit)? = null
+    ): Pair<Boolean, Model3D?> {
         return try {
+            progressCallback?.invoke("Reading file", 10)
             val fileExtension = fileName.substringAfterLast('.', "").lowercase()
             
+            progressCallback?.invoke("Parsing $fileExtension format", 20)
             val model3D = when (fileExtension) {
                 "obj" -> {
                     // Read OBJ file content as text
+                    progressCallback?.invoke("Reading OBJ content", 30)
                     val content = fileUploadHelper.readFileContent(uri)
                     if (content != null) {
+                        progressCallback?.invoke("Parsing OBJ geometry", 50)
                         model3DParser.parseOBJ(content)
                     } else {
                         Log.w(TAG, "Failed to read OBJ file content")
@@ -174,8 +200,10 @@ class Model3DFragment : Fragment() {
                 }
                 "glb" -> {
                     // Read GLB file content as binary
+                    progressCallback?.invoke("Reading GLB binary", 30)
                     val bytes = fileUploadHelper.readFileBytes(uri)
                     if (bytes != null) {
+                        progressCallback?.invoke("Parsing GLB data", 50)
                         model3DParser.parseGLB(bytes)
                     } else {
                         Log.w(TAG, "Failed to read GLB file content")
@@ -189,6 +217,7 @@ class Model3DFragment : Fragment() {
             }
             
             if (model3D != null) {
+                progressCallback?.invoke("Storing model", 80)
                 // Store the model
                 val storedModel = modelStorageManager.storeModel(
                     uri = uri,
@@ -198,9 +227,12 @@ class Model3DFragment : Fragment() {
                     customName = customName
                 )
                 
+                progressCallback?.invoke("Finalizing", 95)
+                
                 if (storedModel != null) {
                     // Set as active model in storage
                     modelStorageManager.setActiveModel(storedModel.id)
+                    progressCallback?.invoke("Complete", 100)
                     Log.d(TAG, "Model stored successfully: ${storedModel.getDisplayName()}")
                     Pair(true, model3D)
                 } else {
