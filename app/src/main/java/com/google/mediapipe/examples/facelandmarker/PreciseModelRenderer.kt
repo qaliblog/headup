@@ -165,25 +165,23 @@ class PreciseModelRenderer {
         
         // Render faces as wireframe
         for (face in model.faces) {
-            if (face.vertexIndices.size >= 3) {
-                val path = Path()
-                
-                for (i in face.vertexIndices.indices) {
-                    val vertexIndex = face.vertexIndices[i]
-                    if (vertexIndex < screenVertices.size) {
-                        val screenPoint = screenVertices[vertexIndex]
-                        
-                        if (i == 0) {
-                            path.moveTo(screenPoint.x, screenPoint.y)
-                        } else {
-                            path.lineTo(screenPoint.x, screenPoint.y)
-                        }
+            val vertexIndices = listOf(face.v1, face.v2, face.v3)
+            val path = Path()
+            
+            for ((i, vertexIndex) in vertexIndices.withIndex()) {
+                if (vertexIndex < screenVertices.size) {
+                    val screenPoint = screenVertices[vertexIndex]
+                    
+                    if (i == 0) {
+                        path.moveTo(screenPoint.x, screenPoint.y)
+                    } else {
+                        path.lineTo(screenPoint.x, screenPoint.y)
                     }
                 }
-                
-                path.close()
-                canvas.drawPath(path, wireframePaint)
             }
+            
+            path.close()
+            canvas.drawPath(path, wireframePaint)
         }
         
         Log.d(TAG, "🎨 Rendered ${model.faces.size} faces with precise alignment")

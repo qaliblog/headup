@@ -139,7 +139,7 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                             preciseRenderer.updateScreenParameters(
                                 width = width,
                                 height = height,
-                                scaleFactor = scaleFactor,
+                                scale = scaleFactor,
                                 offsetX = offsetX,
                                 offsetY = offsetY
                             )

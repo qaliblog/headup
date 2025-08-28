@@ -189,7 +189,7 @@ class FileUploadHelper(
                     64 * 1024
                 }
                 
-                val bufferedReader = inputStream.bufferedReader(bufferSize)
+                val bufferedReader = inputStream.bufferedReader(Charsets.UTF_8, bufferSize)
                 val content = bufferedReader.readText()
                 Log.d(TAG, "Successfully read ${content.length} characters")
                 content
@@ -214,9 +214,10 @@ class FileUploadHelper(
                     // Pre-allocate byte array with known size for better performance
                     val buffer = ByteArray(fileSize.toInt())
                     var totalRead = 0
-                    var bytesRead: Int
                     
-                    while (totalRead < fileSize && inputStream.read(buffer, totalRead, (fileSize - totalRead).toInt()).also { bytesRead = it } != -1) {
+                    while (totalRead < fileSize) {
+                        val bytesRead = inputStream.read(buffer, totalRead, (fileSize - totalRead).toInt())
+                        if (bytesRead == -1) break
                         totalRead += bytesRead
                     }
                     
