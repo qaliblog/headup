@@ -139,14 +139,18 @@ class LandmarkAlignedRenderer {
             val transformedVertices = mutableListOf<PointF>()
             
             model.vertices.forEachIndexed { index, vertex ->
+                // Normalize vertex first (to match the coordinate system used in alignment calculation)
+                val normalizedVertex = normalizeModelVertex(vertex, model)
+                
                 // Apply landmark-based transformation
-                val transformed = transformVertex(vertex, alignment.transformMatrix)
+                val transformed = transformVertex(normalizedVertex, alignment.transformMatrix)
                 
                 // Project to screen coordinates
                 val projected = projectToScreen(transformed)
                 
                 if (index < 3) { // Log first few vertices for debugging
                     Log.d(TAG, "Vertex $index: $vertex -> transformed: $transformed -> screen: $projected")
+                    Log.d(TAG, "  Transformation matrix first row: [${alignment.transformMatrix[0]}, ${alignment.transformMatrix[1]}, ${alignment.transformMatrix[2]}, ${alignment.transformMatrix[3]}]")
                 }
                 
                 transformedVertices.add(projected)
@@ -155,6 +159,12 @@ class LandmarkAlignedRenderer {
             // Render the transformed model
             renderTransformedModel(canvas, paint, model, transformedVertices, alignment)
             
+            // TEMPORARY: Simple fallback rendering for debugging
+            renderSimplePoints(canvas, transformedVertices)
+            
+            // EMERGENCY: Draw a big circle at face center to verify coordinate system
+            renderEmergencyMarker(canvas, alignment)
+            
             Log.d(TAG, "Landmark-aligned rendering completed successfully")
             true
             
@@ -162,6 +172,23 @@ class LandmarkAlignedRenderer {
             Log.e(TAG, "Error rendering landmark-aligned model", e)
             false
         }
+    }
+    
+    /**
+     * Normalize model vertex to [0,1] coordinate system to match MediaPipe landmarks
+     */
+    private fun normalizeModelVertex(vertex: Vertex3D, model: Model3D): Vertex3D {
+        val bounds = model.boundingBox
+        val width = bounds.second.x - bounds.first.x
+        val height = bounds.second.y - bounds.first.y
+        val depth = bounds.second.z - bounds.first.z
+        
+        // Normalize to [0,1] based on model's bounding box
+        val normalizedX = if (width > 0) (vertex.x - bounds.first.x) / width else 0.5f
+        val normalizedY = if (height > 0) (vertex.y - bounds.first.y) / height else 0.5f
+        val normalizedZ = if (depth > 0) (vertex.z - bounds.first.z) / depth else 0.5f
+        
+        return Vertex3D(normalizedX, normalizedY, normalizedZ)
     }
     
     /**
@@ -280,6 +307,60 @@ class LandmarkAlignedRenderer {
         canvas.drawCircle(centerX, centerY, 8f, centerPaint)
         
         Log.d(TAG, "Model bounding box: ($minX, $minY) to ($maxX, $maxY), center: ($centerX, $centerY)")
+    }
+    
+    /**
+     * Simple fallback rendering - just draw vertices as large circles
+     */
+    private fun renderSimplePoints(canvas: Canvas, transformedVertices: List<PointF>) {
+        val pointPaint = Paint().apply {
+            color = Color.MAGENTA
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        
+        Log.d(TAG, "Rendering ${transformedVertices.size} simple points")
+        
+        transformedVertices.forEachIndexed { index, point ->
+            if (index % 10 == 0) { // Only draw every 10th point to avoid clutter
+                canvas.drawCircle(point.x, point.y, 8f, pointPaint)
+                
+                if (index < 5) { // Log first few points
+                    Log.d(TAG, "Point $index at (${point.x}, ${point.y})")
+                }
+            }
+        }
+    }
+    
+    /**
+     * EMERGENCY: Draw a big visible marker at the calculated face center
+     */
+    private fun renderEmergencyMarker(canvas: Canvas, alignment: FaceAlignmentTransform) {
+        // Get face center from translation
+        val centerX = alignment.translation.x * viewportWidth * scaleFactor + offsetX
+        val centerY = alignment.translation.y * viewportHeight * scaleFactor + offsetY
+        
+        val emergencyPaint = Paint().apply {
+            color = Color.GREEN
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        
+        // Draw a big green circle at the face center
+        canvas.drawCircle(centerX, centerY, 30f, emergencyPaint)
+        
+        // Draw cross lines through center
+        val linePaint = Paint().apply {
+            color = Color.WHITE
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
+        }
+        
+        canvas.drawLine(centerX - 40f, centerY, centerX + 40f, centerY, linePaint)
+        canvas.drawLine(centerX, centerY - 40f, centerX, centerY + 40f, linePaint)
+        
+        Log.d(TAG, "Emergency marker at screen coords: ($centerX, $centerY)")
+        Log.d(TAG, "Translation from alignment: ${alignment.translation}")
     }
     
     /**
