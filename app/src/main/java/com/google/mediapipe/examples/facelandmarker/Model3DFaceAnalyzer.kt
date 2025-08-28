@@ -38,7 +38,13 @@ data class Model3DFaceData(
     val landmarkToVertexMapping: Map<Int, Int>, // Maps MediaPipe landmark indices to 3D model vertex indices
     val faceBounds: RectF,
     val faceCenter: Vertex3D,
-    val faceScale: Float
+    val faceScale: Float,
+    // NEW: Store the successful detection metadata
+    val detectionAngle: Triple<Float, Float, Float>, // pitch, yaw, roll where face was detected
+    val rendered2DImage: android.graphics.Bitmap, // The 2D image that was successfully detected
+    val detectionConfidence: Float, // Confidence score for this detection
+    val imageScale: Float, // Scale used when rendering the 2D image
+    val imageOffset: Pair<Float, Float> // X,Y offset used when rendering
 )
 
 /**
@@ -198,6 +204,19 @@ class Model3DFaceAnalyzer(private val context: Context) {
                     val faceCenter = calculateModelFaceCenter(landmarks, model, landmarkToVertexMapping)
                     val faceScale = calculateModelFaceScale(faceBounds)
                     
+                    // Step 6: Calculate detection confidence (based on landmark count and distribution)
+                    val detectionConfidence = calculateDetectionConfidence(landmarks)
+                    
+                    // Step 7: Calculate the scale and offset used for this successful rendering
+                    val bounds = model.boundingBox
+                    val modelWidth = bounds.second.x - bounds.first.x
+                    val modelHeight = bounds.second.y - bounds.first.y
+                    val usedScale = minOf(renderedImage.width * 0.8f / modelWidth, renderedImage.height * 0.8f / modelHeight)
+                    val centerX = (bounds.first.x + bounds.second.x) / 2f
+                    val centerY = (bounds.first.y + bounds.second.y) / 2f
+                    val offsetX = renderedImage.width / 2f - (centerX * usedScale)
+                    val offsetY = renderedImage.height / 2f - (centerY * usedScale)
+                    
                     bestResult = Model3DFaceData(
                         landmarks = landmarks,
                         originalModel = model,
@@ -205,7 +224,12 @@ class Model3DFaceAnalyzer(private val context: Context) {
                         landmarkToVertexMapping = landmarkToVertexMapping,
                         faceBounds = faceBounds,
                         faceCenter = faceCenter,
-                        faceScale = faceScale
+                        faceScale = faceScale,
+                        detectionAngle = angle,
+                        rendered2DImage = renderedImage.copy(renderedImage.config, false),
+                        detectionConfidence = detectionConfidence,
+                        imageScale = usedScale,
+                        imageOffset = Pair(offsetX, offsetY)
                     )
                     maxLandmarks = landmarks.size
                     bestAngle = angle
@@ -564,6 +588,67 @@ class Model3DFaceAnalyzer(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error analyzing image characteristics", e)
         }
+    }
+    
+    /**
+     * Calculate detection confidence based on landmark count and spatial distribution
+     */
+    private fun calculateDetectionConfidence(landmarks: List<NormalizedLandmark>): Float {
+        if (landmarks.isEmpty()) return 0f
+        
+        // Base confidence from landmark count (MediaPipe full face = ~468 landmarks)
+        val countConfidence = minOf(landmarks.size / 468f, 1f)
+        
+        // Check spatial distribution - good faces should have landmarks spread across the image
+        val xCoords = landmarks.map { it.x() }
+        val yCoords = landmarks.map { it.y() }
+        
+        val xRange = (xCoords.maxOrNull() ?: 0f) - (xCoords.minOrNull() ?: 0f)
+        val yRange = (yCoords.maxOrNull() ?: 0f) - (yCoords.minOrNull() ?: 0f)
+        
+        // Good face detection should span at least 30% of image in both dimensions
+        val distributionConfidence = minOf(xRange / 0.3f, 1f) * minOf(yRange / 0.3f, 1f)
+        
+        // Check if landmarks form face-like clusters (eyes, nose, mouth areas)
+        val clusterConfidence = analyzeLandmarkClusters(landmarks)
+        
+        // Weighted average
+        val totalConfidence = (countConfidence * 0.5f + distributionConfidence * 0.3f + clusterConfidence * 0.2f)
+        
+        Log.d(TAG, "Detection confidence: count=$countConfidence, distribution=$distributionConfidence, clusters=$clusterConfidence, total=$totalConfidence")
+        return totalConfidence
+    }
+    
+    /**
+     * Analyze if landmarks form recognizable face clusters (eyes, nose, mouth)
+     */
+    private fun analyzeLandmarkClusters(landmarks: List<NormalizedLandmark>): Float {
+        if (landmarks.size < 100) return 0f
+        
+        // Simple cluster analysis - check if landmarks form distinct groups
+        // This is a basic implementation - could be enhanced with actual face geometry
+        
+        val xCoords = landmarks.map { it.x() }
+        val yCoords = landmarks.map { it.y() }
+        
+        // Check for horizontal symmetry (left/right eye regions)
+        val leftSide = landmarks.filter { it.x() < 0.5f }
+        val rightSide = landmarks.filter { it.x() > 0.5f }
+        
+        val symmetryScore = if (leftSide.size > 0 && rightSide.size > 0) {
+            val balance = minOf(leftSide.size, rightSide.size).toFloat() / maxOf(leftSide.size, rightSide.size)
+            balance
+        } else 0f
+        
+        // Check for vertical distribution (upper face vs lower face)
+        val upperFace = landmarks.filter { it.y() < 0.5f }
+        val lowerFace = landmarks.filter { it.y() > 0.5f }
+        
+        val verticalScore = if (upperFace.size > 0 && lowerFace.size > 0) {
+            minOf(upperFace.size, lowerFace.size).toFloat() / landmarks.size
+        } else 0f
+        
+        return (symmetryScore + verticalScore) / 2f
     }
     
     /**

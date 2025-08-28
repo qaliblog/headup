@@ -202,6 +202,17 @@
         app:layout_constraintStart_toEndOf="@+id/switch_face_detection"
         app:layout_constraintTop_toTopOf="@+id/switch_face_detection" />
 
+    <Button
+        android:id="@+id/button_show_detection_image"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Show Original Detection Image"
+        android:enabled="false"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/button_test_face_detection" />
+
     <TextView
         android:id="@+id/text_face_detection_info"
         android:layout_width="0dp"
@@ -212,7 +223,7 @@
         android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/switch_face_detection" />
+        app:layout_constraintTop_toBottomOf="@+id/button_show_detection_image" />
 
     <!-- Control Buttons -->
     <Button

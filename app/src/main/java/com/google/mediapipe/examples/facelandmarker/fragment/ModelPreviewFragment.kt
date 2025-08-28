@@ -42,6 +42,7 @@ class ModelPreviewFragment : Fragment() {
     private lateinit var modelStorageManager: ModelStorageManager
     private lateinit var model3DParser: Model3DParser
     private lateinit var faceAnalyzer: Model3DFaceAnalyzer
+    private lateinit var model2DRenderer: Model3D2DRenderer
     
     private var currentModel: Model3D? = null
     private var currentRotationX = 0f
@@ -68,6 +69,7 @@ class ModelPreviewFragment : Fragment() {
         modelStorageManager = ModelStorageManager(requireContext())
         model3DParser = Model3DParser(requireContext())
         faceAnalyzer = Model3DFaceAnalyzer(requireContext())
+        model2DRenderer = Model3D2DRenderer()
 
         // Set up UI
         setupUI()
@@ -134,6 +136,11 @@ class ModelPreviewFragment : Fragment() {
         // Test face detection button
         fragmentModelPreviewBinding.buttonTestFaceDetection.setOnClickListener {
             testFaceDetection()
+        }
+        
+        // Show detection image button
+        fragmentModelPreviewBinding.buttonShowDetectionImage.setOnClickListener {
+            showOriginalDetectionImage()
         }
         
         // Initialize controls
@@ -227,13 +234,16 @@ class ModelPreviewFragment : Fragment() {
                     fragmentModelPreviewBinding.textCurrentModel.text = "Preview: ${model3D.vertices.size} vertices, ${model3D.faces.size} faces"
                     
                     // Show face detection info
-                    if (model3D.hasFaceData) {
+                    if (model3D.hasFaceData && model3D.faceData != null) {
+                        val faceData = model3D.faceData
                         fragmentModelPreviewBinding.textFaceDetectionInfo.text = 
-                            "✓ Face detected: ${model3D.faceData?.landmarks?.size} landmarks"
+                            "✓ Face detected: ${faceData.landmarks.size} landmarks\nAngle: pitch=${faceData.detectionAngle.first}°, yaw=${faceData.detectionAngle.second}°, roll=${faceData.detectionAngle.third}°\nConfidence: ${String.format("%.2f", faceData.detectionConfidence)}"
                         fragmentModelPreviewBinding.textFaceDetectionInfo.setTextColor(requireContext().getColor(android.R.color.holo_green_dark))
+                        fragmentModelPreviewBinding.buttonShowDetectionImage.isEnabled = true
                     } else {
                         fragmentModelPreviewBinding.textFaceDetectionInfo.text = "⚠ No face detected"
                         fragmentModelPreviewBinding.textFaceDetectionInfo.setTextColor(requireContext().getColor(android.R.color.holo_orange_dark))
+                        fragmentModelPreviewBinding.buttonShowDetectionImage.isEnabled = false
                     }
                 } else {
                     fragmentModelPreviewBinding.textStatus.text = "Failed to load model"
@@ -285,6 +295,21 @@ class ModelPreviewFragment : Fragment() {
     
     private suspend fun renderModelToBitmap(model: Model3D): Bitmap = withContext(Dispatchers.Default) {
         val size = 800
+        
+        // If model has face data, use the 2D renderer for accurate rendering
+        if (model.hasFaceData && model.faceData != null) {
+            Log.d(TAG, "Using 2D renderer with face detection data")
+            return@withContext model2DRenderer.renderWithDetectionData(
+                model = model,
+                faceData = model.faceData,
+                targetWidth = size,
+                targetHeight = size,
+                showLandmarks = showFaceDetection
+            )
+        }
+        
+        // Fallback to manual rendering for models without face data
+        Log.d(TAG, "Using manual rendering (no face data)")
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         
@@ -435,12 +460,15 @@ class ModelPreviewFragment : Fragment() {
                         faceData = faceData
                     )
                     
-                    // Enable face detection view
+                    // Enable face detection view and show detection image button
                     fragmentModelPreviewBinding.switchFaceDetection.isChecked = true
+                    fragmentModelPreviewBinding.buttonShowDetectionImage.isEnabled = true
                     showFaceDetection = true
                     renderCurrentModel()
                     
-                    Toast.makeText(requireContext(), "Face detected! ${faceData.landmarks.size} landmarks found", Toast.LENGTH_LONG).show()
+                    Toast.makeText(requireContext(), 
+                        "Face detected! ${faceData.landmarks.size} landmarks found\nAngle: ${faceData.detectionAngle}\nConfidence: ${String.format("%.2f", faceData.detectionConfidence)}", 
+                        Toast.LENGTH_LONG).show()
                 } else {
                     fragmentModelPreviewBinding.textStatus.text = "No face detected"
                     fragmentModelPreviewBinding.textFaceDetectionInfo.text = "⚠ No face detected"
@@ -456,6 +484,23 @@ class ModelPreviewFragment : Fragment() {
                 fragmentModelPreviewBinding.progressBar.visibility = View.GONE
             }
         }
+    }
+    
+    private fun showOriginalDetectionImage() {
+        val model = currentModel ?: return
+        val faceData = model.faceData ?: return
+        
+        // Show the exact image that MediaPipe successfully detected
+        val detectionImage = model2DRenderer.createDetectionPreview(faceData, 600)
+        fragmentModelPreviewBinding.imagePreview.setImageBitmap(detectionImage)
+        
+        // Update status
+        fragmentModelPreviewBinding.textStatus.text = "Showing original detection image at angle: " +
+                "pitch=${faceData.detectionAngle.first}°, yaw=${faceData.detectionAngle.second}°, roll=${faceData.detectionAngle.third}°"
+        
+        Toast.makeText(requireContext(), 
+            "This is the exact image MediaPipe detected as a face\nConfidence: ${String.format("%.2f", faceData.detectionConfidence)}", 
+            Toast.LENGTH_LONG).show()
     }
 
     override fun onDestroyView() {
