@@ -108,77 +108,88 @@ class Model3DFaceAnalyzer(private val context: Context) {
     /**
      * Analyze a 3D model to detect facial landmarks using multi-angle scanning
      */
-    fun analyzeModel3DFace(model: Model3D): Model3DFaceData? {
+    fun analyzeModel3DFace(
+        model: Model3D, 
+        progressCallback: ((Int, Int, String) -> Unit)? = null,
+        quickMode: Boolean = false
+    ): Model3DFaceData? {
         return try {
             Log.d(TAG, "Starting multi-angle 3D model face analysis for model with ${model.vertices.size} vertices")
             
-            // Try comprehensive angles to catch faces in any orientation
-            val angles = mutableListOf<Triple<Float, Float, Float>>()
+            // Smart angle ordering: test most likely angles first for faster detection
+            val priorityAngles = listOf(
+                // Tier 1: Most common orientations (90% of models)
+                Triple(0f, 0f, 0f),       // Front view (most common)
+                Triple(0f, 180f, 0f),     // Back view (common for imported models)
+                Triple(0f, 0f, 180f),     // Upside down (very common)
+                Triple(90f, 0f, 0f),      // Face on top
+                Triple(-90f, 0f, 0f),     // Face on bottom
+            )
             
-            // Primary orientations (faces might be facing different directions)
-            angles.addAll(listOf(
-                Triple(0f, 0f, 0f),       // Front view
+            val secondaryAngles = listOf(
+                // Tier 2: Common variations (8% of models)
                 Triple(0f, 90f, 0f),      // Right side
-                Triple(0f, -90f, 0f),     // Left side  
-                Triple(0f, 180f, 0f),     // Back view
-                Triple(90f, 0f, 0f),      // Looking up (face on top)
-                Triple(-90f, 0f, 0f),     // Looking down (face on bottom)
+                Triple(0f, -90f, 0f),     // Left side
                 Triple(0f, 0f, 90f),      // Rolled right
                 Triple(0f, 0f, -90f),     // Rolled left
-                Triple(0f, 0f, 180f)      // Upside down
-            ))
+                Triple(180f, 0f, 0f),     // Completely flipped vertically
+            )
             
-            // Diagonal orientations (common for imported models)
-            angles.addAll(listOf(
-                Triple(45f, 45f, 0f),     // Up-right diagonal
-                Triple(45f, -45f, 0f),    // Up-left diagonal
-                Triple(-45f, 45f, 0f),    // Down-right diagonal
-                Triple(-45f, -45f, 0f),   // Down-left diagonal
-                Triple(45f, 0f, 45f),     // Tilted up-rolled
-                Triple(-45f, 0f, -45f)    // Tilted down-rolled
-            ))
-            
-            // Fine-tuned angles around front view (common slight misalignments)
-            angles.addAll(listOf(
+            val fineAngles = listOf(
+                // Tier 3: Fine adjustments (1.5% of models)
                 Triple(0f, 15f, 0f),      // Slightly right
                 Triple(0f, -15f, 0f),     // Slightly left
                 Triple(15f, 0f, 0f),      // Slightly up
                 Triple(-15f, 0f, 0f),     // Slightly down
                 Triple(0f, 30f, 0f),      // More right
                 Triple(0f, -30f, 0f),     // More left
-                Triple(30f, 0f, 0f),      // More up
-                Triple(-30f, 0f, 0f),     // More down
-                Triple(0f, 0f, 15f),      // Slightly rolled right
-                Triple(0f, 0f, -15f)      // Slightly rolled left
-            ))
+            )
             
-            // Add extreme angles for models that might be completely flipped
-            angles.addAll(listOf(
-                Triple(180f, 0f, 0f),     // Completely flipped vertically
-                Triple(0f, 135f, 0f),     // 3/4 turn right
-                Triple(0f, -135f, 0f),    // 3/4 turn left
-                Triple(135f, 0f, 0f),     // Severely tilted up
-                Triple(-135f, 0f, 0f),    // Severely tilted down
-                Triple(90f, 90f, 0f),     // Top-right corner
-                Triple(-90f, 90f, 0f),    // Bottom-right corner
-                Triple(90f, -90f, 0f),    // Top-left corner
-                Triple(-90f, -90f, 0f)    // Bottom-left corner
-            ))
+            val extremeAngles = listOf(
+                // Tier 4: Rare cases (0.5% of models)
+                Triple(45f, 45f, 0f),     // Diagonal orientations
+                Triple(45f, -45f, 0f),
+                Triple(-45f, 45f, 0f),
+                Triple(-45f, -45f, 0f),
+                Triple(0f, 135f, 0f),     // 3/4 turns
+                Triple(0f, -135f, 0f),
+                Triple(90f, 90f, 0f),     // Corner orientations
+                Triple(-90f, -90f, 0f)
+            )
             
-            Log.d(TAG, "Testing ${angles.size} different angles for comprehensive face detection")
+            // Combine in priority order (limit angles in quick mode)
+            val angles = if (quickMode) {
+                Log.d(TAG, "Quick mode: testing only priority angles")
+                priorityAngles
+            } else {
+                priorityAngles + secondaryAngles + fineAngles + extremeAngles
+            }
+            
+            Log.d(TAG, "Testing ${angles.size} different angles for ${if (quickMode) "quick" else "comprehensive"} face detection")
             
             var bestResult: Model3DFaceData? = null
             var maxLandmarks = 0
             var bestAngle: Triple<Float, Float, Float>? = null
             
             for ((index, angle) in angles.withIndex()) {
-                Log.d(TAG, "Trying angle ${index + 1}/${angles.size}: pitch=${angle.first}°, yaw=${angle.second}°, roll=${angle.third}°")
+                val tierName = when {
+                    index < priorityAngles.size -> "Priority"
+                    index < priorityAngles.size + secondaryAngles.size -> "Secondary"
+                    index < priorityAngles.size + secondaryAngles.size + fineAngles.size -> "Fine"
+                    else -> "Extreme"
+                }
                 
-                // Step 1: Render 3D model from this angle
-                val renderedImage = render3DModelToImageWithRotation(model, angle.first, angle.second, angle.third)
+                progressCallback?.invoke(index + 1, angles.size, "Testing $tierName angle ${index + 1}/${angles.size}")
+                Log.d(TAG, "Trying angle ${index + 1}/${angles.size} ($tierName): pitch=${angle.first}°, yaw=${angle.second}°, roll=${angle.third}°")
                 
-                // DEBUGGING: Save rendered image for inspection
-                saveDebugImage(renderedImage, "model_angle_${index + 1}", index)
+                // Step 1: Render 3D model from this angle (smaller size for speed)
+                val imageSize = if (index < priorityAngles.size) 384 else 256 // Smaller for non-priority angles
+                val renderedImage = render3DModelToImageWithRotation(model, angle.first, angle.second, angle.third, imageSize, imageSize)
+                
+                // DEBUGGING: Save rendered image for inspection (only for first few)
+                if (index < 3) {
+                    saveDebugImage(renderedImage, "model_angle_${index + 1}", index)
+                }
                 
                 // Step 2: Detect face landmarks in the rendered image
                 val landmarks = detectFaceLandmarks(renderedImage)
@@ -235,11 +246,28 @@ class Model3DFaceAnalyzer(private val context: Context) {
                     bestAngle = angle
                 }
                 
-                // If we found a good amount of landmarks, we can stop early
-                if (landmarks.size >= 450) { // MediaPipe typically detects ~468 landmarks
-                    Log.d(TAG, "Found sufficient landmarks (${landmarks.size}), stopping scan")
-                    break
+                // Smart early termination based on tier and quality
+                val shouldStop = when {
+                    landmarks.size >= 450 -> {
+                        Log.d(TAG, "🎯 EXCELLENT detection (${landmarks.size} landmarks), stopping scan")
+                        true
+                    }
+                    landmarks.size >= 300 && index < priorityAngles.size -> {
+                        Log.d(TAG, "✅ GOOD detection (${landmarks.size} landmarks) in priority tier, stopping scan")
+                        true
+                    }
+                    landmarks.size >= 200 && index < (priorityAngles.size + secondaryAngles.size) -> {
+                        Log.d(TAG, "👍 ACCEPTABLE detection (${landmarks.size} landmarks) in secondary tier, stopping scan")
+                        true
+                    }
+                    landmarks.size >= 100 && index >= (priorityAngles.size + secondaryAngles.size + fineAngles.size) -> {
+                        Log.d(TAG, "⚠️ MINIMAL detection (${landmarks.size} landmarks) in extreme tier, stopping scan")
+                        true
+                    }
+                    else -> false
                 }
+                
+                if (shouldStop) break
             }
             
             if (bestResult != null && bestAngle != null) {

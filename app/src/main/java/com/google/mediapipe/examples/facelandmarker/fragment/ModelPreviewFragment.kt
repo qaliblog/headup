@@ -133,9 +133,14 @@ class ModelPreviewFragment : Fragment() {
             resetView()
         }
         
-        // Test face detection button
+        // Test face detection button (full)
         fragmentModelPreviewBinding.buttonTestFaceDetection.setOnClickListener {
-            testFaceDetection()
+            testFaceDetection(quickMode = false)
+        }
+        
+        // Quick test button 
+        fragmentModelPreviewBinding.buttonQuickTest.setOnClickListener {
+            testFaceDetection(quickMode = true)
         }
         
         // Show detection image button
@@ -430,7 +435,7 @@ class ModelPreviewFragment : Fragment() {
         bitmap
     }
     
-    private fun testFaceDetection() {
+    private fun testFaceDetection(quickMode: Boolean = false) {
         val model = currentModel ?: run {
             Toast.makeText(requireContext(), "No model loaded", Toast.LENGTH_SHORT).show()
             return
@@ -439,11 +444,20 @@ class ModelPreviewFragment : Fragment() {
         fragmentScope.launch {
             try {
                 fragmentModelPreviewBinding.progressBar.visibility = View.VISIBLE
-                fragmentModelPreviewBinding.textStatus.text = "Testing face detection..."
+                fragmentModelPreviewBinding.textStatus.text = if (quickMode) "Quick face detection..." else "Full face detection..."
                 
+                val startTime = System.currentTimeMillis()
                 val faceData = withContext(Dispatchers.IO) {
-                    faceAnalyzer.analyzeModel3DFace(model)
+                    faceAnalyzer.analyzeModel3DFace(model, { current, total, status ->
+                        // Update UI on main thread
+                        launch(Dispatchers.Main) {
+                            fragmentModelPreviewBinding.textStatus.text = status
+                            val progress = (current * 100f / total).toInt()
+                            Log.d(TAG, "Face detection progress: $current/$total ($progress%) - $status")
+                        }
+                    }, quickMode)
                 }
+                val detectionTime = System.currentTimeMillis() - startTime
                 
                 if (faceData != null) {
                     fragmentModelPreviewBinding.textStatus.text = "Face detection successful!"
@@ -467,7 +481,7 @@ class ModelPreviewFragment : Fragment() {
                     renderCurrentModel()
                     
                     Toast.makeText(requireContext(), 
-                        "Face detected! ${faceData.landmarks.size} landmarks found\nAngle: ${faceData.detectionAngle}\nConfidence: ${String.format("%.2f", faceData.detectionConfidence)}", 
+                        "Face detected in ${detectionTime}ms!\n${faceData.landmarks.size} landmarks found\nAngle: ${faceData.detectionAngle}\nConfidence: ${String.format("%.2f", faceData.detectionConfidence)}", 
                         Toast.LENGTH_LONG).show()
                 } else {
                     fragmentModelPreviewBinding.textStatus.text = "No face detected"
