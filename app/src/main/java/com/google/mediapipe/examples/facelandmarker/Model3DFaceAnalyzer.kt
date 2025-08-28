@@ -24,7 +24,6 @@ import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
-import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerOptions
 import kotlin.math.*
 
 /**
@@ -81,7 +80,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
             val baseOptionsBuilder = BaseOptions.builder()
                 .setModelAssetPath(FACE_LANDMARKER_TASK)
             
-            val options = FaceLandmarkerOptions.builder()
+            val options = FaceLandmarker.FaceLandmarkerOptions.builder()
                 .setBaseOptions(baseOptionsBuilder.build())
                 .setRunningMode(RunningMode.IMAGE)
                 .setNumFaces(1)
@@ -165,16 +164,18 @@ class Model3DFaceAnalyzer(private val context: Context) {
         
         // Calculate model bounds for centering
         val bounds = model.boundingBox
-        val modelWidth = bounds.width()
-        val modelHeight = bounds.height()
-        val modelDepth = bounds.depth()
+        val modelWidth = bounds.second.x - bounds.first.x
+        val modelHeight = bounds.second.y - bounds.first.y
+        val modelDepth = bounds.second.z - bounds.first.z
         
         // Calculate scale to fit model in image
         val scale = minOf(width * 0.8f / modelWidth, height * 0.8f / modelHeight)
         
         // Center offset
-        val offsetX = width / 2f - (bounds.centerX() * scale)
-        val offsetY = height / 2f - (bounds.centerY() * scale)
+        val centerX = (bounds.first.x + bounds.second.x) / 2f
+        val centerY = (bounds.first.y + bounds.second.y) / 2f
+        val offsetX = width / 2f - (centerX * scale)
+        val offsetY = height / 2f - (centerY * scale)
         
         // Render vertices as points (simple orthographic projection)
         model.vertices.forEach { vertex ->
@@ -248,9 +249,13 @@ class Model3DFaceAnalyzer(private val context: Context) {
         val mapping = mutableMapOf<Int, Int>()
         
         val bounds = model.boundingBox
-        val scale = minOf(imageWidth * 0.8f / bounds.width(), imageHeight * 0.8f / bounds.height())
-        val offsetX = imageWidth / 2f - (bounds.centerX() * scale)
-        val offsetY = imageHeight / 2f - (bounds.centerY() * scale)
+        val modelWidth = bounds.second.x - bounds.first.x
+        val modelHeight = bounds.second.y - bounds.first.y
+        val scale = minOf(imageWidth * 0.8f / modelWidth, imageHeight * 0.8f / modelHeight)
+        val centerX = (bounds.first.x + bounds.second.x) / 2f
+        val centerY = (bounds.first.y + bounds.second.y) / 2f
+        val offsetX = imageWidth / 2f - (centerX * scale)
+        val offsetY = imageHeight / 2f - (centerY * scale)
         
         landmarks.forEachIndexed { landmarkIndex, landmark ->
             val landmarkX = landmark.x() * imageWidth
@@ -264,7 +269,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 val projectedX = vertex.x * scale + offsetX
                 val projectedY = vertex.y * scale + offsetY
                 
-                val distance = sqrt((landmarkX - projectedX).pow(2) + (landmarkY - projectedY).pow(2))
+                val distance = sqrt((landmarkX - projectedX).pow(2) + (landmarkY - projectedY).pow(2)).toFloat()
                 
                 if (distance < minDistance) {
                     minDistance = distance
@@ -322,7 +327,29 @@ class Model3DFaceAnalyzer(private val context: Context) {
         
         Log.d(TAG, "Extracted face region: ${faceVertices.size} vertices, ${faceFaces.size} faces")
         
-        return Model3D(faceVertices, faceFaces)
+        // Calculate centroid and bounding box for face region
+        val centroid = if (faceVertices.isNotEmpty()) {
+            val sumX = faceVertices.sumOf { it.x.toDouble() }.toFloat()
+            val sumY = faceVertices.sumOf { it.y.toDouble() }.toFloat()
+            val sumZ = faceVertices.sumOf { it.z.toDouble() }.toFloat()
+            Vertex3D(sumX / faceVertices.size, sumY / faceVertices.size, sumZ / faceVertices.size)
+        } else {
+            Vertex3D(0f, 0f, 0f)
+        }
+        
+        val boundingBox = if (faceVertices.isNotEmpty()) {
+            val minX = faceVertices.minOf { it.x }
+            val maxX = faceVertices.maxOf { it.x }
+            val minY = faceVertices.minOf { it.y }
+            val maxY = faceVertices.maxOf { it.y }
+            val minZ = faceVertices.minOf { it.z }
+            val maxZ = faceVertices.maxOf { it.z }
+            Pair(Vertex3D(minX, minY, minZ), Vertex3D(maxX, maxY, maxZ))
+        } else {
+            Pair(Vertex3D(0f, 0f, 0f), Vertex3D(0f, 0f, 0f))
+        }
+        
+        return Model3D(faceVertices, faceFaces, centroid, boundingBox)
     }
     
     private fun calculateModelFaceBounds(landmarks: List<NormalizedLandmark>): RectF {

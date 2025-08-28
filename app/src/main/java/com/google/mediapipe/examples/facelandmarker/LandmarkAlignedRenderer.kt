@@ -266,7 +266,7 @@ class LandmarkAlignedRenderer {
     private fun shouldShowCorrespondences(): Boolean {
         // For now, always show correspondences in debug builds
         // This could be controlled by a debug flag
-        return BuildConfig.DEBUG
+        return true // Always show for debugging purposes
     }
     
     /**

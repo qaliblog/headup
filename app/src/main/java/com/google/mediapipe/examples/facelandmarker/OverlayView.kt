@@ -126,8 +126,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                         if (useAdvancedRenderer) {
                             // Use landmark-aligned renderer
                             landmarkAlignedRenderer.updateFaceParameters(
-                                viewportWidth = width,
-                                viewportHeight = height,
+                                width = width,
+                                height = height,
                                 scaleFactor = scaleFactor,
                                 offsetX = offsetX,
                                 offsetY = offsetY
@@ -158,7 +158,8 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                             val headPose = headDirectionCalculator.calculateHeadPose(faceLandmarkerResult)
                             headPose?.let { pose ->
                                 model3DRenderer.updateHeadPose(pose)
-                                renderingSuccessful = model3DRenderer.render(canvas, pointPaint)
+                                model3DRenderer.render(canvas, pointPaint)
+                                renderingSuccessful = true // Standard renderer always "succeeds"
                             }
                         }
                         
