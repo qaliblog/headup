@@ -16,32 +16,32 @@
 -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:id="@id/camera_fragment"
+        android:id="@+id/camera_fragment"
         android:icon="@drawable/ic_baseline_photo_camera_24"
         android:title="@string/menu_camera" />
 
     <item
-        android:id="@id/gallery_fragment"
+        android:id="@+id/gallery_fragment"
         android:icon="@drawable/ic_baseline_photo_library_24"
         android:title="@string/menu_gallery" />
         
     <item
-        android:id="@id/model3d_fragment"
+        android:id="@+id/model3d_fragment"
         android:icon="@android:drawable/ic_menu_upload"
         android:title="Upload" />
         
     <item
-        android:id="@id/model_library_fragment"
+        android:id="@+id/model_library_fragment"
         android:icon="@android:drawable/ic_menu_sort_by_size"
         android:title="Library" />
         
     <item
-        android:id="@id/model_preview_fragment"
+        android:id="@+id/model_preview_fragment"
         android:icon="@android:drawable/ic_menu_view"
         android:title="Preview" />
         
     <item
-        android:id="@id/manual_adjustment_fragment"
+        android:id="@+id/manual_adjustment_fragment"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="Adjust" />
 </menu>
