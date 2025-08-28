@@ -33,7 +33,7 @@ class Model3DPreviewView @JvmOverloads constructor(
 
     // Model data
     private var currentModel: Model3D? = null
-    private var manualAdjustments: MainViewModel.ManualAdjustmentData? = null
+    private var manualAdjustments: ManualAdjustmentData? = null
     
     // Rendering
     private val materializedRenderer = MaterializedModelRenderer()
@@ -139,7 +139,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     /**
      * Apply manual adjustments to a renderer
      */
-    private fun applyAdjustmentsToRenderer(renderer: Any, adjustments: MainViewModel.ManualAdjustmentData) {
+    private fun applyAdjustmentsToRenderer(renderer: Any, adjustments: ManualAdjustmentData) {
         // Create a transform matrix from manual adjustments
         val transform = createTransformFromAdjustments(adjustments)
         
@@ -159,7 +159,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     /**
      * Create a transformation matrix from manual adjustments
      */
-    private fun createTransformFromAdjustments(adjustments: MainViewModel.ManualAdjustmentData): Matrix {
+    private fun createTransformFromAdjustments(adjustments: ManualAdjustmentData): Matrix {
         val matrix = Matrix()
         
         // Apply transformations in order: scale, rotate, translate
@@ -337,7 +337,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     /**
      * Apply manual adjustments to the preview
      */
-    fun applyAdjustments(adjustments: MainViewModel.ManualAdjustmentData) {
+    fun applyAdjustments(adjustments: ManualAdjustmentData) {
         manualAdjustments = adjustments
         invalidate()
     }

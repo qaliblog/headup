@@ -25,6 +25,9 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.google.mediapipe.examples.facelandmarker.MainViewModel
+import com.google.mediapipe.examples.facelandmarker.ManualAdjustmentData
+import com.google.mediapipe.examples.facelandmarker.StoredAdjustmentData
+import com.google.mediapipe.examples.facelandmarker.ModelStorageManager
 import com.google.mediapipe.examples.facelandmarker.databinding.FragmentManualAdjustmentBinding
 import kotlinx.coroutines.launch
 
@@ -261,7 +264,7 @@ class ManualAdjustmentFragment : Fragment() {
         Log.d(TAG, "   Rotation: X=${manualRotationX}°, Y=${manualRotationY}°, Z=${manualRotationZ}°")
         
         // Create adjustment data
-        val adjustmentData = MainViewModel.ManualAdjustmentData(
+        val adjustmentData = ManualAdjustmentData(
             scale = manualScale,
             scaleX = manualScaleX,
             scaleY = manualScaleY,

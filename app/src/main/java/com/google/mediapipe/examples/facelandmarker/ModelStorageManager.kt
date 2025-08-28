@@ -315,7 +315,7 @@ class ModelStorageManager(private val context: Context) {
     suspend fun updateModelAdjustments(modelId: String, adjustmentData: StoredAdjustmentData): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val models = getStoredModels().toMutableList()
+                val models = getAllStoredModels().toMutableList()
                 val modelIndex = models.indexOfFirst { it.id == modelId }
                 
                 if (modelIndex != -1) {
@@ -323,8 +323,7 @@ class ModelStorageManager(private val context: Context) {
                     models[modelIndex] = updatedModel
                     
                     // Save updated list
-                    val modelsJson = gson.toJson(models)
-                    sharedPrefs.edit().putString(MODELS_LIST_KEY, modelsJson).apply()
+                    saveModelsList(models)
                     
                     Log.d(TAG, "✅ Updated model adjustments for: ${updatedModel.name}")
                     true
@@ -343,7 +342,7 @@ class ModelStorageManager(private val context: Context) {
      * Get stored adjustment data for a model
      */
     fun getModelAdjustments(modelId: String): StoredAdjustmentData? {
-        val models = getStoredModels()
+        val models = getAllStoredModels()
         return models.find { it.id == modelId }?.adjustmentData
     }
     
