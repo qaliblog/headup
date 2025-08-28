@@ -132,16 +132,22 @@ class LandmarkAlignedRenderer {
         
         return try {
             Log.d(TAG, "Rendering landmark-aligned model: ${model.vertices.size} vertices")
+            Log.d(TAG, "Alignment scale: ${alignment.scale}, score: ${alignment.alignmentScore}")
+            Log.d(TAG, "Viewport: ${viewportWidth}x${viewportHeight}, scaleFactor: $scaleFactor, offset: ($offsetX, $offsetY)")
             
             // Transform all vertices using the alignment
             val transformedVertices = mutableListOf<PointF>()
             
-            model.vertices.forEach { vertex ->
+            model.vertices.forEachIndexed { index, vertex ->
                 // Apply landmark-based transformation
                 val transformed = transformVertex(vertex, alignment.transformMatrix)
                 
                 // Project to screen coordinates
                 val projected = projectToScreen(transformed)
+                
+                if (index < 3) { // Log first few vertices for debugging
+                    Log.d(TAG, "Vertex $index: $vertex -> transformed: $transformed -> screen: $projected")
+                }
                 
                 transformedVertices.add(projected)
             }
@@ -173,9 +179,11 @@ class LandmarkAlignedRenderer {
      * Project 3D coordinate to screen coordinates
      */
     private fun projectToScreen(vertex: Vertex3D): PointF {
-        // Apply screen scaling and offsets
-        val screenX = vertex.x * scaleFactor + offsetX
-        val screenY = vertex.y * scaleFactor + offsetY
+        // Convert normalized coordinates [0,1] to screen coordinates
+        // The transformation matrix already handles the face alignment,
+        // now we just need to map to screen space
+        val screenX = vertex.x * viewportWidth * scaleFactor + offsetX
+        val screenY = vertex.y * viewportHeight * scaleFactor + offsetY
         
         return PointF(screenX, screenY)
     }

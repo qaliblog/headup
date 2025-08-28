@@ -152,7 +152,7 @@ class FaceLandmarkMatcher {
                 modelVertexIdx < modelFaceData.originalModel.vertices.size &&
                 realLandmarkIdx < realFaceLandmarks.size) {
                 
-                val modelVertex = modelFaceData.originalModel.vertices[modelVertexIdx]
+                val modelVertex = normalizeModelVertex(modelFaceData.originalModel.vertices[modelVertexIdx], modelFaceData)
                 val realLandmark = realFaceLandmarks[realLandmarkIdx]
                 
                 correspondences.add(LandmarkCorrespondence(
@@ -160,9 +160,9 @@ class FaceLandmarkMatcher {
                     realLandmarkIndex = realLandmarkIdx,
                     modelVertex = modelVertex,
                     realLandmark = Vertex3D(
-                        realLandmark.x() * imageWidth,
-                        realLandmark.y() * imageHeight,
-                        realLandmark.z() * imageWidth // Approximate depth scaling
+                        realLandmark.x(), // Keep normalized coordinates
+                        realLandmark.y(), // Keep normalized coordinates  
+                        realLandmark.z() // Keep normalized depth
                     ),
                     weight = PRIMARY_WEIGHT
                 ))
@@ -177,7 +177,7 @@ class FaceLandmarkMatcher {
                 modelVertexIdx < modelFaceData.originalModel.vertices.size &&
                 realLandmarkIdx < realFaceLandmarks.size) {
                 
-                val modelVertex = modelFaceData.originalModel.vertices[modelVertexIdx]
+                val modelVertex = normalizeModelVertex(modelFaceData.originalModel.vertices[modelVertexIdx], modelFaceData)
                 val realLandmark = realFaceLandmarks[realLandmarkIdx]
                 
                 correspondences.add(LandmarkCorrespondence(
@@ -185,9 +185,9 @@ class FaceLandmarkMatcher {
                     realLandmarkIndex = realLandmarkIdx,
                     modelVertex = modelVertex,
                     realLandmark = Vertex3D(
-                        realLandmark.x() * imageWidth,
-                        realLandmark.y() * imageHeight,
-                        realLandmark.z() * imageWidth
+                        realLandmark.x(), // Keep normalized coordinates
+                        realLandmark.y(), // Keep normalized coordinates
+                        realLandmark.z() // Keep normalized depth
                     ),
                     weight = SECONDARY_WEIGHT
                 ))
@@ -196,6 +196,23 @@ class FaceLandmarkMatcher {
         
         Log.d(TAG, "Established ${correspondences.size} landmark correspondences")
         return correspondences
+    }
+    
+    /**
+     * Normalize model vertex to [0,1] coordinate system to match MediaPipe landmarks
+     */
+    private fun normalizeModelVertex(vertex: Vertex3D, modelFaceData: Model3DFaceData): Vertex3D {
+        val bounds = modelFaceData.originalModel.boundingBox
+        val width = bounds.second.x - bounds.first.x
+        val height = bounds.second.y - bounds.first.y
+        val depth = bounds.second.z - bounds.first.z
+        
+        // Normalize to [0,1] based on model's bounding box
+        val normalizedX = if (width > 0) (vertex.x - bounds.first.x) / width else 0.5f
+        val normalizedY = if (height > 0) (vertex.y - bounds.first.y) / height else 0.5f
+        val normalizedZ = if (depth > 0) (vertex.z - bounds.first.z) / depth else 0.5f
+        
+        return Vertex3D(normalizedX, normalizedY, normalizedZ)
     }
     
     /**
@@ -264,29 +281,130 @@ class FaceLandmarkMatcher {
         modelCentroid: Vertex3D,
         realCentroid: Vertex3D
     ): Vertex3D {
-        var modelDistanceSum = 0f
-        var realDistanceSum = 0f
-        var count = 0
+        // Use specific facial feature distances for more accurate scaling
+        val scaleFactors = mutableListOf<Float>()
         
-        correspondences.forEach { correspondence ->
-            val modelDistance = distance(correspondence.modelVertex, modelCentroid)
-            val realDistance = distance(correspondence.realLandmark, realCentroid)
+        // 1. Eye-to-eye distance scaling (most reliable)
+        val eyeScale = calculateEyeToEyeScale(correspondences)
+        if (eyeScale > 0) {
+            scaleFactors.add(eyeScale)
+            Log.d(TAG, "Eye-to-eye scale factor: $eyeScale")
+        }
+        
+        // 2. Nose-to-mouth distance scaling
+        val noseMouthScale = calculateNoseToMouthScale(correspondences)
+        if (noseMouthScale > 0) {
+            scaleFactors.add(noseMouthScale)
+            Log.d(TAG, "Nose-to-mouth scale factor: $noseMouthScale")
+        }
+        
+        // 3. Face width scaling (left to right eye outer corners)
+        val faceWidthScale = calculateFaceWidthScale(correspondences)
+        if (faceWidthScale > 0) {
+            scaleFactors.add(faceWidthScale)
+            Log.d(TAG, "Face width scale factor: $faceWidthScale")
+        }
+        
+        // 4. Fallback: general landmark distance scaling
+        if (scaleFactors.isEmpty()) {
+            var modelDistanceSum = 0f
+            var realDistanceSum = 0f
+            var count = 0
             
-            if (modelDistance > 0.001f) { // Avoid division by very small numbers
-                modelDistanceSum += modelDistance * correspondence.weight
-                realDistanceSum += realDistance * correspondence.weight
-                count++
+            correspondences.forEach { correspondence ->
+                val modelDistance = distance(correspondence.modelVertex, modelCentroid)
+                val realDistance = distance(correspondence.realLandmark, realCentroid)
+                
+                if (modelDistance > 0.001f) {
+                    modelDistanceSum += modelDistance * correspondence.weight
+                    realDistanceSum += realDistance * correspondence.weight
+                    count++
+                }
             }
+            
+            val averageScale = if (count > 0 && modelDistanceSum > 0) {
+                realDistanceSum / modelDistanceSum
+            } else {
+                0.5f // Conservative fallback scale
+            }
+            scaleFactors.add(averageScale)
+            Log.d(TAG, "Fallback scale factor: $averageScale")
         }
         
-        val averageScale = if (count > 0 && modelDistanceSum > 0) {
-            realDistanceSum / modelDistanceSum
+        // Use median of available scale factors for robustness
+        val finalScale = if (scaleFactors.isNotEmpty()) {
+            scaleFactors.sorted()[scaleFactors.size / 2]
         } else {
-            1f
+            0.5f
         }
         
-        // For now, use uniform scaling (can be enhanced to calculate per-axis scaling)
-        return Vertex3D(averageScale, averageScale, averageScale)
+        // Clamp scale to reasonable bounds (prevent too large/small models)
+        val clampedScale = finalScale.coerceIn(0.1f, 2.0f)
+        
+        Log.d(TAG, "Final scale factor: $clampedScale (from ${scaleFactors.size} measurements)")
+        
+        // Use uniform scaling for face models
+        return Vertex3D(clampedScale, clampedScale, clampedScale)
+    }
+    
+    private fun calculateEyeToEyeScale(correspondences: List<LandmarkCorrespondence>): Float {
+        val leftEyeModel = correspondences.find { it.realLandmarkIndex == 33 }?.modelVertex
+        val rightEyeModel = correspondences.find { it.realLandmarkIndex == 362 }?.modelVertex
+        val leftEyeReal = correspondences.find { it.realLandmarkIndex == 33 }?.realLandmark
+        val rightEyeReal = correspondences.find { it.realLandmarkIndex == 362 }?.realLandmark
+        
+        return if (leftEyeModel != null && rightEyeModel != null && leftEyeReal != null && rightEyeReal != null) {
+            val modelEyeDistance = distance(leftEyeModel, rightEyeModel)
+            val realEyeDistance = distance(leftEyeReal, rightEyeReal)
+            
+            if (modelEyeDistance > 0.001f) {
+                realEyeDistance / modelEyeDistance
+            } else {
+                0f
+            }
+        } else {
+            0f
+        }
+    }
+    
+    private fun calculateNoseToMouthScale(correspondences: List<LandmarkCorrespondence>): Float {
+        val noseModel = correspondences.find { it.realLandmarkIndex == 2 }?.modelVertex // Nose tip
+        val mouthModel = correspondences.find { it.realLandmarkIndex == 164 }?.modelVertex // Mouth center
+        val noseReal = correspondences.find { it.realLandmarkIndex == 2 }?.realLandmark
+        val mouthReal = correspondences.find { it.realLandmarkIndex == 164 }?.realLandmark
+        
+        return if (noseModel != null && mouthModel != null && noseReal != null && mouthReal != null) {
+            val modelNoseMouthDistance = distance(noseModel, mouthModel)
+            val realNoseMouthDistance = distance(noseReal, mouthReal)
+            
+            if (modelNoseMouthDistance > 0.001f) {
+                realNoseMouthDistance / modelNoseMouthDistance
+            } else {
+                0f
+            }
+        } else {
+            0f
+        }
+    }
+    
+    private fun calculateFaceWidthScale(correspondences: List<LandmarkCorrespondence>): Float {
+        val leftFaceModel = correspondences.find { it.realLandmarkIndex == 234 }?.modelVertex // Left cheek
+        val rightFaceModel = correspondences.find { it.realLandmarkIndex == 454 }?.modelVertex // Right cheek
+        val leftFaceReal = correspondences.find { it.realLandmarkIndex == 234 }?.realLandmark
+        val rightFaceReal = correspondences.find { it.realLandmarkIndex == 454 }?.realLandmark
+        
+        return if (leftFaceModel != null && rightFaceModel != null && leftFaceReal != null && rightFaceReal != null) {
+            val modelFaceWidth = distance(leftFaceModel, rightFaceModel)
+            val realFaceWidth = distance(leftFaceReal, rightFaceReal)
+            
+            if (modelFaceWidth > 0.001f) {
+                realFaceWidth / modelFaceWidth
+            } else {
+                0f
+            }
+        } else {
+            0f
+        }
     }
     
     private fun calculateRotation(
@@ -391,7 +509,8 @@ class FaceLandmarkMatcher {
         val averageError = if (totalWeight > 0) totalError / totalWeight else Float.MAX_VALUE
         
         // Convert error to score (0-1, where 1 is perfect alignment)
-        val maxAcceptableError = 50f // pixels
+        // Since we're using normalized coordinates, error is also normalized
+        val maxAcceptableError = 0.1f // 10% of normalized space
         return maxOf(0f, 1f - (averageError / maxAcceptableError))
     }
     
