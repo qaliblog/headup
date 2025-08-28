@@ -79,5 +79,23 @@
         <action
             android:id="@+id/action_library_to_model3d"
             app:destination="@id/model3d_fragment" />
+            
+        <action
+            android:id="@+id/action_library_to_preview"
+            app:destination="@id/model_preview_fragment" />
+    </fragment>
+    
+    <fragment
+        android:id="@+id/model_preview_fragment"
+        android:name="com.google.mediapipe.examples.facelandmarker.fragment.ModelPreviewFragment"
+        android:label="ModelPreviewFragment">
+        
+        <action
+            android:id="@+id/action_preview_to_camera"
+            app:destination="@id/camera_fragment" />
+            
+        <action
+            android:id="@+id/action_preview_to_library"
+            app:destination="@id/model_library_fragment" />
     </fragment>
 </navigation>

@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.mediapipe.examples.facelandmarker.*
 import com.google.mediapipe.examples.facelandmarker.databinding.FragmentModelLibraryBinding
 import kotlinx.coroutines.*
+import java.io.File
 
 class ModelLibraryFragment : Fragment() {
 
@@ -193,18 +194,62 @@ class ModelLibraryFragment : Fragment() {
     }
 
     private fun showModelOptionsDialog(model: StoredModel) {
-        val options = arrayOf("Rename", "Delete", "View Details")
+        val options = arrayOf("Preview Model", "Rename", "Delete", "View Details")
         
         AlertDialog.Builder(requireContext())
             .setTitle(model.getDisplayName())
             .setItems(options) { _, which ->
                 when (which) {
-                    0 -> showRenameDialog(model)
-                    1 -> showDeleteDialog(model)
-                    2 -> showModelDetailsDialog(model)
+                    0 -> previewModel(model)
+                    1 -> showRenameDialog(model)
+                    2 -> showDeleteDialog(model)
+                    3 -> showModelDetailsDialog(model)
                 }
             }
             .show()
+    }
+    
+    private fun previewModel(model: StoredModel) {
+        // Load the model and set it as active for preview
+        fragmentScope.launch {
+            try {
+                val model3D = withContext(Dispatchers.IO) {
+                    val file = File(model.filePath)
+                    if (!file.exists()) {
+                        Log.e(TAG, "Model file not found: ${model.filePath}")
+                        return@withContext null
+                    }
+                    
+                    when (model.fileFormat.lowercase()) {
+                        "obj" -> {
+                            val content = file.readText()
+                            model3DParser.parseOBJ(content)
+                        }
+                        "glb" -> {
+                            val bytes = file.readBytes()
+                            model3DParser.parseGLB(bytes)
+                        }
+                        else -> {
+                            Log.e(TAG, "Unsupported format: ${model.fileFormat}")
+                            null
+                        }
+                    }
+                }
+                
+                if (model3D != null) {
+                    viewModel.set3DModel(model3D)
+                    // Navigate to preview tab
+                    Navigation.findNavController(requireView())
+                        .navigate(R.id.action_library_to_preview)
+                } else {
+                    Toast.makeText(requireContext(), "Failed to load model for preview", Toast.LENGTH_SHORT).show()
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading model for preview", e)
+                Toast.makeText(requireContext(), "Error loading model: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun showRenameDialog(model: StoredModel) {
