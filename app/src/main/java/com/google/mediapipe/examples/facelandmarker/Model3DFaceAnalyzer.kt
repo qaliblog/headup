@@ -24,6 +24,8 @@ import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
+import java.io.File
+import java.io.FileOutputStream
 import kotlin.math.*
 
 /**
@@ -269,8 +271,8 @@ class Model3DFaceAnalyzer(private val context: Context) {
         }
         
         // Render faces as wireframe with same rotation
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1f
+        facePaint.style = Paint.Style.STROKE
+        facePaint.strokeWidth = 1f
         
         model.faces.forEach { face ->
             val vertices = listOf(
@@ -309,7 +311,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 canvas.drawLine(
                     transformedVertices[i].first, transformedVertices[i].second,
                     transformedVertices[j].first, transformedVertices[j].second,
-                    paint
+                    facePaint
                 )
             }
         }
