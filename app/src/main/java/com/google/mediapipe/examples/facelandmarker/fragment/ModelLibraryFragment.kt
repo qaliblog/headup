@@ -163,9 +163,9 @@ class ModelLibraryFragment : Fragment() {
                         modelStorageManager.setActiveModel(model.id)
                     }
                     
-                    // Update ViewModel
-                    viewModel.set3DModel(model3D)
-                    Log.d(TAG, "Set model in ViewModel. ViewModel visible state: ${viewModel.is3DModelVisible()}")
+                    // Update ViewModel with model ID
+                    viewModel.set3DModel(model3D, model.id)
+                    Log.d(TAG, "Set model in ViewModel with ID: ${model.id}. ViewModel visible state: ${viewModel.is3DModelVisible()}")
                     
                     // Refresh the list to show active state
                     loadStoredModels()
@@ -237,7 +237,7 @@ class ModelLibraryFragment : Fragment() {
                 }
                 
                 if (model3D != null) {
-                    viewModel.set3DModel(model3D)
+                    viewModel.set3DModel(model3D, model.id)
                     // Navigate to preview tab
                     Navigation.findNavController(requireView())
                         .navigate(R.id.action_library_to_preview)

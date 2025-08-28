@@ -37,6 +37,9 @@ class MainViewModel : ViewModel() {
     private val _current3DModel = MutableLiveData<Model3D?>()
     val current3DModel: LiveData<Model3D?> = _current3DModel
     
+    private var _currentModelId: String? = null
+    val currentModelId: String? get() = _currentModelId
+    
     private var _is3DModelVisible: Boolean = true
     
     // Manual adjustment state
@@ -84,8 +87,9 @@ class MainViewModel : ViewModel() {
     }
     
     // 3D Model methods
-    fun set3DModel(model: Model3D) {
+    fun set3DModel(model: Model3D, modelId: String? = null) {
         _current3DModel.postValue(model)
+        _currentModelId = modelId
         _is3DModelVisible = true
     }
     
@@ -95,6 +99,7 @@ class MainViewModel : ViewModel() {
     
     fun clear3DModel() {
         _current3DModel.postValue(null)
+        _currentModelId = null
         _is3DModelVisible = false
     }
     
@@ -129,24 +134,11 @@ class MainViewModel : ViewModel() {
         _landmarkDetectionSettings.postValue(LandmarkDetectionSettings(enabled, confidenceThreshold))
     }
     
-    suspend fun saveLandmarkData(
-        scale: Float, scaleX: Float, scaleY: Float,
-        offsetX: Float, offsetY: Float, offsetZ: Float,
-        rotationX: Float, rotationY: Float, rotationZ: Float,
-        confidenceThreshold: Float
-    ): Boolean {
-        // TODO: Implement saving landmark data to storage
-        return try {
-            // Save current model with manual adjustments
-            val currentModel = _current3DModel.value
-            if (currentModel != null) {
-                // Store adjustment data with model
-                true
-            } else {
-                false
-            }
-        } catch (e: Exception) {
-            false
+    fun getCurrentModelIdForSaving(): String? {
+        return if (_current3DModel.value != null && _currentModelId != null) {
+            _currentModelId
+        } else {
+            null
         }
     }
     

@@ -18,6 +18,38 @@ package com.google.mediapipe.examples.facelandmarker
 import java.util.*
 
 /**
+ * Data class for storing manual adjustment parameters
+ */
+data class StoredAdjustmentData(
+    val scale: Float = 1.0f,
+    val scaleX: Float = 1.0f,
+    val scaleY: Float = 1.0f,
+    val offsetX: Float = 0.0f,
+    val offsetY: Float = 0.0f,
+    val offsetZ: Float = 0.0f,
+    val rotationX: Float = 0.0f,
+    val rotationY: Float = 0.0f,
+    val rotationZ: Float = 0.0f,
+    val confidenceThreshold: Float = 0.5f,
+    val savedDate: Long = System.currentTimeMillis()
+) {
+    fun getFormattedSaveDate(): String {
+        val date = Date(savedDate)
+        return try {
+            java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.getDefault()).format(date)
+        } catch (e: Exception) {
+            "Unknown date"
+        }
+    }
+    
+    fun hasCustomAdjustments(): Boolean {
+        return scale != 1.0f || scaleX != 1.0f || scaleY != 1.0f ||
+               offsetX != 0.0f || offsetY != 0.0f || offsetZ != 0.0f ||
+               rotationX != 0.0f || rotationY != 0.0f || rotationZ != 0.0f
+    }
+}
+
+/**
  * Data class representing a stored 3D model
  */
 data class StoredModel(
@@ -34,7 +66,8 @@ data class StoredModel(
     val isActive: Boolean = false,
     val hasFaceData: Boolean = false,
     val landmarkCount: Int = 0,
-    val faceDetectionAttempted: Boolean = false
+    val faceDetectionAttempted: Boolean = false,
+    val adjustmentData: StoredAdjustmentData? = null
 ) {
     fun getDisplayName(): String = if (name.isBlank()) originalFileName else name
     
@@ -70,4 +103,14 @@ data class StoredModel(
             else -> android.R.color.holo_orange_dark
         }
     }
+    
+    fun getAdjustmentStatus(): String {
+        return if (adjustmentData?.hasCustomAdjustments() == true) {
+            "✓ Custom adjustments saved (${adjustmentData.getFormattedSaveDate()})"
+        } else {
+            "Default adjustments"
+        }
+    }
+    
+    fun hasCustomAdjustments(): Boolean = adjustmentData?.hasCustomAdjustments() == true
 }

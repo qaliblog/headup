@@ -325,9 +325,17 @@ class ManualAdjustmentFragment : Fragment() {
     private fun saveLandmarkData() {
         Log.d(TAG, "💾 Saving landmark data with current adjustments")
         
+        val modelId = viewModel.getCurrentModelIdForSaving()
+        if (modelId == null) {
+            Toast.makeText(requireContext(), 
+                "❌ No model loaded or model ID not available", 
+                Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         lifecycleScope.launch {
             try {
-                val success = viewModel.saveLandmarkData(
+                val adjustmentData = StoredAdjustmentData(
                     scale = manualScale,
                     scaleX = manualScaleX,
                     scaleY = manualScaleY,
@@ -337,22 +345,28 @@ class ManualAdjustmentFragment : Fragment() {
                     rotationX = manualRotationX,
                     rotationY = manualRotationY,
                     rotationZ = manualRotationZ,
-                    confidenceThreshold = landmarkConfidenceThreshold
+                    confidenceThreshold = landmarkConfidenceThreshold,
+                    savedDate = System.currentTimeMillis()
                 )
+                
+                val modelStorageManager = ModelStorageManager(requireContext())
+                val success = modelStorageManager.updateModelAdjustments(modelId, adjustmentData)
                 
                 if (success) {
                     Toast.makeText(requireContext(), 
-                        "✅ Landmark data saved successfully!", 
+                        "✅ Adjustment data saved successfully!", 
                         Toast.LENGTH_LONG).show()
+                    Log.d(TAG, "✅ Saved adjustments for model: $modelId")
                 } else {
                     Toast.makeText(requireContext(), 
-                        "❌ Failed to save landmark data", 
+                        "❌ Failed to save adjustment data", 
                         Toast.LENGTH_SHORT).show()
+                    Log.w(TAG, "❌ Failed to save adjustments for model: $modelId")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error saving landmark data", e)
+                Log.e(TAG, "Error saving adjustment data", e)
                 Toast.makeText(requireContext(), 
-                    "Error: ${e.message}", 
+                    "❌ Error saving adjustment data: ${e.message}", 
                     Toast.LENGTH_SHORT).show()
             }
         }

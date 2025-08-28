@@ -131,7 +131,7 @@ class Model3DFragment : Fragment() {
             try {
                 val startTime = System.currentTimeMillis()
                 
-                val (success, model3D) = withContext(Dispatchers.IO) {
+                val (success, model3D, modelId) = withContext(Dispatchers.IO) {
                     processAndStoreModelFile(uri, fileName, customName) { stage, progress ->
                         // Update UI on main thread
                         launch(Dispatchers.Main) {
@@ -157,8 +157,8 @@ class Model3DFragment : Fragment() {
                     // Clear the custom name field for next upload
                     fragmentModel3dBinding.editCustomName.text?.clear()
                     
-                    // Set as active model
-                    viewModel.set3DModel(model3D)
+                    // Set as active model with ID
+                    viewModel.set3DModel(model3D, modelId)
                 } else {
                     fragmentModel3dBinding.textModelStatus.text = "Failed to process model"
                     Toast.makeText(requireContext(), "Failed to process 3D model", Toast.LENGTH_SHORT).show()
@@ -179,7 +179,7 @@ class Model3DFragment : Fragment() {
         fileName: String, 
         customName: String,
         progressCallback: ((String, Int) -> Unit)? = null
-    ): Pair<Boolean, Model3D?> {
+    ): Triple<Boolean, Model3D?, String?> {
         return try {
             progressCallback?.invoke("Reading file", 10)
             val fileExtension = fileName.substringAfterLast('.', "").lowercase()
@@ -234,18 +234,18 @@ class Model3DFragment : Fragment() {
                     modelStorageManager.setActiveModel(storedModel.id)
                     progressCallback?.invoke("Complete", 100)
                     Log.d(TAG, "Model stored successfully: ${storedModel.getDisplayName()}")
-                    Pair(true, model3D)
+                    Triple(true, model3D, storedModel.id)
                 } else {
                     Log.w(TAG, "Failed to store model")
-                    Pair(false, null)
+                    Triple(false, null, null)
                 }
             } else {
                 Log.w(TAG, "Failed to parse model file")
-                Pair(false, null)
+                Triple(false, null, null)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error processing and storing model file", e)
-            Pair(false, null)
+            Triple(false, null, null)
         }
     }
 

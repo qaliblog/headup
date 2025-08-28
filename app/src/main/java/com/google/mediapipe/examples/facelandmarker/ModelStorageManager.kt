@@ -308,4 +308,49 @@ class ModelStorageManager(private val context: Context) {
             null
         }
     }
+    
+    /**
+     * Update a stored model with adjustment data
+     */
+    suspend fun updateModelAdjustments(modelId: String, adjustmentData: StoredAdjustmentData): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val models = getStoredModels().toMutableList()
+                val modelIndex = models.indexOfFirst { it.id == modelId }
+                
+                if (modelIndex != -1) {
+                    val updatedModel = models[modelIndex].copy(adjustmentData = adjustmentData)
+                    models[modelIndex] = updatedModel
+                    
+                    // Save updated list
+                    val modelsJson = gson.toJson(models)
+                    sharedPrefs.edit().putString(MODELS_LIST_KEY, modelsJson).apply()
+                    
+                    Log.d(TAG, "✅ Updated model adjustments for: ${updatedModel.name}")
+                    true
+                } else {
+                    Log.w(TAG, "❌ Model not found for adjustment update: $modelId")
+                    false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating model adjustments", e)
+                false
+            }
+        }
+    }
+    
+    /**
+     * Get stored adjustment data for a model
+     */
+    fun getModelAdjustments(modelId: String): StoredAdjustmentData? {
+        val models = getStoredModels()
+        return models.find { it.id == modelId }?.adjustmentData
+    }
+    
+    /**
+     * Check if a model has custom adjustments
+     */
+    fun hasCustomAdjustments(modelId: String): Boolean {
+        return getModelAdjustments(modelId)?.hasCustomAdjustments() == true
+    }
 }
