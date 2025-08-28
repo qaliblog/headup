@@ -48,9 +48,9 @@ class MainViewModel : ViewModel() {
     val landmarkDetectionSettings: LiveData<LandmarkDetectionSettings> = _landmarkDetectionSettings
     
     init {
-        // Initialize with default values
-        _manualAdjustments.value = ManualAdjustmentData()
-        _landmarkDetectionSettings.value = LandmarkDetectionSettings()
+        // Initialize with default values - use postValue to avoid threading issues
+        _manualAdjustments.postValue(ManualAdjustmentData())
+        _landmarkDetectionSettings.postValue(LandmarkDetectionSettings())
     }
 
     val currentDelegate: Int get() = _delegate
@@ -85,7 +85,7 @@ class MainViewModel : ViewModel() {
     
     // 3D Model methods
     fun set3DModel(model: Model3D) {
-        _current3DModel.value = model
+        _current3DModel.postValue(model)
         _is3DModelVisible = true
     }
     
@@ -94,7 +94,7 @@ class MainViewModel : ViewModel() {
     fun has3DModel(): Boolean = _current3DModel.value != null
     
     fun clear3DModel() {
-        _current3DModel.value = null
+        _current3DModel.postValue(null)
         _is3DModelVisible = false
     }
     
@@ -120,13 +120,13 @@ class MainViewModel : ViewModel() {
         rotationY: Float = 0.0f,
         rotationZ: Float = 0.0f
     ) {
-        _manualAdjustments.value = ManualAdjustmentData(
+        _manualAdjustments.postValue(ManualAdjustmentData(
             scale, scaleX, scaleY, offsetX, offsetY, offsetZ, rotationX, rotationY, rotationZ
-        )
+        ))
     }
     
     fun setLandmarkDetectionSettings(enabled: Boolean, confidenceThreshold: Float) {
-        _landmarkDetectionSettings.value = LandmarkDetectionSettings(enabled, confidenceThreshold)
+        _landmarkDetectionSettings.postValue(LandmarkDetectionSettings(enabled, confidenceThreshold))
     }
     
     suspend fun saveLandmarkData(
