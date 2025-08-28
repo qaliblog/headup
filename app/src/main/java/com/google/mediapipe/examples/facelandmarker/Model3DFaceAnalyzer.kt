@@ -84,9 +84,9 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 .setBaseOptions(baseOptionsBuilder.build())
                 .setRunningMode(RunningMode.IMAGE)
                 .setNumFaces(1)
-                .setMinFaceDetectionConfidence(0.3f)
-                .setMinFacePresenceConfidence(0.3f)
-                .setMinTrackingConfidence(0.3f)
+                .setMinFaceDetectionConfidence(0.1f)  // Much lower threshold
+                .setMinFacePresenceConfidence(0.1f)   // Much lower threshold
+                .setMinTrackingConfidence(0.1f)       // Much lower threshold
                 .build()
             
             faceLandmarker = FaceLandmarker.createFromOptions(context, options)
@@ -122,10 +122,18 @@ class Model3DFaceAnalyzer(private val context: Context) {
                 // Step 1: Render 3D model from this angle
                 val renderedImage = render3DModelToImageWithRotation(model, angle.first, angle.second, angle.third)
                 
+                // DEBUGGING: Save rendered image for inspection
+                saveDebugImage(renderedImage, "model_angle_${index + 1}", index)
+                
                 // Step 2: Detect face landmarks in the rendered image
                 val landmarks = detectFaceLandmarks(renderedImage)
                 
                 Log.d(TAG, "Angle ${index + 1}: detected ${landmarks.size} landmarks")
+                Log.d(TAG, "Rendered image size: ${renderedImage.width}x${renderedImage.height}")
+                Log.d(TAG, "Image format: ${renderedImage.config}")
+                
+                // Log image characteristics
+                logImageCharacteristics(renderedImage, "Angle ${index + 1}")
                 
                 if (landmarks.size > maxLandmarks) {
                     Log.d(TAG, "New best result with ${landmarks.size} landmarks")
@@ -188,11 +196,18 @@ class Model3DFaceAnalyzer(private val context: Context) {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         
-        // Clear background
-        canvas.drawColor(Color.BLACK)
+        // Clear background with gray for better MediaPipe detection
+        canvas.drawColor(Color.GRAY)
         
-        // Set up paint
-        val paint = Paint().apply {
+        // Set up high-contrast paints
+        val vertexPaint = Paint().apply {
+            color = Color.WHITE
+            strokeWidth = 4f
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        
+        val facePaint = Paint().apply {
             color = Color.WHITE
             strokeWidth = 2f
             style = Paint.Style.FILL_AND_STROKE
@@ -249,7 +264,7 @@ class Model3DFaceAnalyzer(private val context: Context) {
             val screenY = y3 * scale + height / 2f
             
             if (screenX >= 0 && screenX < width && screenY >= 0 && screenY < height) {
-                canvas.drawCircle(screenX, screenY, 2f, paint)
+                canvas.drawCircle(screenX, screenY, 3f, vertexPaint)
             }
         }
         
@@ -376,6 +391,79 @@ class Model3DFaceAnalyzer(private val context: Context) {
         
         Log.d(TAG, "Created preview of 3D model: ${width}x${height} image")
         return bitmap
+    }
+    
+    /**
+     * Save debug image to storage for inspection
+     */
+    private fun saveDebugImage(bitmap: Bitmap, prefix: String, index: Int) {
+        try {
+            val debugDir = File(context.filesDir, "debug_images")
+            if (!debugDir.exists()) debugDir.mkdirs()
+            
+            val fileName = "${prefix}_${System.currentTimeMillis()}.png"
+            val file = File(debugDir, fileName)
+            
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            
+            Log.d(TAG, "Saved debug image: ${file.absolutePath}")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save debug image", e)
+        }
+    }
+    
+    /**
+     * Log detailed characteristics of the rendered image
+     */
+    private fun logImageCharacteristics(bitmap: Bitmap, label: String) {
+        try {
+            // Analyze pixel distribution
+            val pixels = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            
+            var whitePixels = 0
+            var blackPixels = 0
+            var grayPixels = 0
+            var otherPixels = 0
+            
+            pixels.forEach { pixel ->
+                val r = (pixel shr 16) and 0xFF
+                val g = (pixel shr 8) and 0xFF
+                val b = pixel and 0xFF
+                val brightness = (r + g + b) / 3
+                
+                when {
+                    brightness > 200 -> whitePixels++
+                    brightness < 50 -> blackPixels++
+                    brightness in 50..200 -> grayPixels++
+                    else -> otherPixels++
+                }
+            }
+            
+            val totalPixels = pixels.size
+            Log.d(TAG, "$label Image Analysis:")
+            Log.d(TAG, "  Total pixels: $totalPixels")
+            Log.d(TAG, "  White pixels: $whitePixels (${(whitePixels * 100f / totalPixels).toInt()}%)")
+            Log.d(TAG, "  Black pixels: $blackPixels (${(blackPixels * 100f / totalPixels).toInt()}%)")
+            Log.d(TAG, "  Gray pixels: $grayPixels (${(grayPixels * 100f / totalPixels).toInt()}%)")
+            Log.d(TAG, "  Other pixels: $otherPixels (${(otherPixels * 100f / totalPixels).toInt()}%)")
+            
+            // Check if image is mostly black (empty render)
+            if (blackPixels > totalPixels * 0.9) {
+                Log.w(TAG, "$label WARNING: Image is mostly black - model may not be rendering properly!")
+            }
+            
+            // Check if there's enough contrast for face detection
+            if (whitePixels < totalPixels * 0.05) {
+                Log.w(TAG, "$label WARNING: Very few white pixels - model may be too dark for face detection!")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error analyzing image characteristics", e)
+        }
     }
     
     /**
