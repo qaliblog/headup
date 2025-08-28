@@ -44,11 +44,13 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     
     // 3D model rendering components
     private val model3DRenderer = Model3DRenderer()
-    private val landmarkAlignedRenderer = LandmarkAlignedRenderer() // New landmark-based renderer
+    private val landmarkAlignedRenderer = LandmarkAlignedRenderer() // Landmark-based renderer
+    private val progressiveRenderer = ProgressiveModelRenderer() // NEW: Weight point + progressive scaling
     private val headDirectionCalculator = HeadDirectionCalculator()
     private var show3DModel = false
     private var debugMode = false // Show both face mesh AND 3D model for testing
     private var useLandmarkAlignment = true // Use landmark-based alignment when available
+    private var useProgressiveRenderer = true // NEW: Use weight point approach
 
     init {
         initPaints()
@@ -105,11 +107,16 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                 val faceWidth = faceBounds.width() * scaleFactor
                 val faceHeight = faceBounds.height() * scaleFactor
                 
-                // Choose rendering mode: landmark-aligned, standard 3D model, or face landmarks/mesh
-                if (show3DModel && (landmarkAlignedRenderer.hasModel() || model3DRenderer.hasModel())) {
-                    // Determine which renderer to use
-                    val useAdvancedRenderer = useLandmarkAlignment && landmarkAlignedRenderer.hasModel()
-                    val rendererType = if (useAdvancedRenderer) "landmark-aligned" else "standard"
+                // Choose rendering mode: progressive weight-point, landmark-aligned, standard 3D model, or face landmarks/mesh
+                if (show3DModel && (progressiveRenderer.hasValidModel() || landmarkAlignedRenderer.hasModel() || model3DRenderer.hasModel())) {
+                    // Determine which renderer to use (priority order)
+                    val useProgressiveRenderer = this.useProgressiveRenderer && progressiveRenderer.hasValidModel()
+                    val useAdvancedRenderer = !useProgressiveRenderer && useLandmarkAlignment && landmarkAlignedRenderer.hasModel()
+                    val rendererType = when {
+                        useProgressiveRenderer -> "progressive weight-point"
+                        useAdvancedRenderer -> "landmark-aligned"
+                        else -> "standard"
+                    }
                     
                     try {
                         val modeText = if (debugMode) "with face mesh (debug)" else "instead of face mesh"
@@ -123,7 +130,33 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                         
                         var renderingSuccessful = false
                         
-                        if (useAdvancedRenderer) {
+                        if (useProgressiveRenderer) {
+                            // Use progressive weight-point renderer
+                            progressiveRenderer.updateScreenParameters(
+                                width = width,
+                                height = height,
+                                scaleFactor = scaleFactor,
+                                offsetX = offsetX,
+                                offsetY = offsetY
+                            )
+                            
+                            // Update alignment with current face landmarks
+                            val alignmentUpdated = progressiveRenderer.updateAlignment(faceLandmarks)
+                            
+                            if (alignmentUpdated) {
+                                renderingSuccessful = progressiveRenderer.render(canvas, pointPaint)
+                                Log.d("OverlayView", "Progressive rendering: ${if (renderingSuccessful) "success" else "failed"}")
+                                
+                                if (debugMode) {
+                                    // Show alignment info
+                                    val alignmentInfo = progressiveRenderer.getAlignmentInfo()
+                                    Log.d("OverlayView", "Progressive alignment info: $alignmentInfo")
+                                }
+                            } else {
+                                Log.w("OverlayView", "Failed to update progressive alignment")
+                            }
+                            
+                        } else if (useAdvancedRenderer) {
                             // Use landmark-aligned renderer
                             landmarkAlignedRenderer.updateFaceParameters(
                                 width = width,
@@ -280,16 +313,25 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
      * Set a 3D model to render over the face
      */
     fun set3DModel(model: Model3D) {
-        // Try to set model in landmark-aligned renderer first
+        // Try to set model in progressive renderer first (best option)
+        val progressiveRendererSet = progressiveRenderer.setModel(model)
+        
+        // Try to set model in landmark-aligned renderer second
         val landmarkRendererSet = landmarkAlignedRenderer.setModel(model)
         
         // Always set in standard renderer as fallback
         model3DRenderer.setModel(model)
         
-        if (landmarkRendererSet) {
-            Log.d("OverlayView", "Model set in landmark-aligned renderer (${model.faceData?.landmarks?.size} landmarks)")
-        } else {
-            Log.d("OverlayView", "Model set in standard renderer (no face data)")
+        when {
+            progressiveRendererSet -> {
+                Log.d("OverlayView", "Model set in progressive weight-point renderer (${model.faceData?.landmarks?.size} landmarks)")
+            }
+            landmarkRendererSet -> {
+                Log.d("OverlayView", "Model set in landmark-aligned renderer (${model.faceData?.landmarks?.size} landmarks)")
+            }
+            else -> {
+                Log.d("OverlayView", "Model set in standard renderer (no face data)")
+            }
         }
         
         show3DModel = true
