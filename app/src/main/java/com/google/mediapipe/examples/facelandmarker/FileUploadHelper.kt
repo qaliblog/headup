@@ -180,17 +180,8 @@ class FileUploadHelper(
             Log.d(TAG, "Reading file content, size: ${fileSize} bytes")
             
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                // Use larger buffer for better performance
-                val bufferSize = if (fileSize > 0 && fileSize < 1024 * 1024) {
-                    // For files under 1MB, use file size as buffer
-                    fileSize.toInt()
-                } else {
-                    // For larger files or unknown size, use 64KB buffer
-                    64 * 1024
-                }
-                
-                val bufferedReader = inputStream.bufferedReader(Charsets.UTF_8, bufferSize)
-                val content = bufferedReader.readText()
+                // Use buffered reader for better performance
+                val content = inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 Log.d(TAG, "Successfully read ${content.length} characters")
                 content
             }
