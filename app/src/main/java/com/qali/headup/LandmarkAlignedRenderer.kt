@@ -22,18 +22,31 @@ import kotlin.math.*
 
 // Simple data classes for alignment functionality
 data class FaceAlignmentTransform(
-    val scale: Float = 1f,
+    val scale: Triple<Float, Float, Float> = Triple(1f, 1f, 1f),
     val translation: Triple<Float, Float, Float> = Triple(0f, 0f, 0f),
     val rotation: Triple<Float, Float, Float> = Triple(0f, 0f, 0f),
     val transformMatrix: FloatArray = FloatArray(16),
-    val alignmentScore: Float = 0f
-)
+    val alignmentScore: Float = 0f,
+    val correspondences: List<LandmarkCorrespondence> = emptyList()
+) {
+    // Helper properties for easier access
+    val x: Float get() = translation.first
+    val y: Float get() = translation.second
+    val z: Float get() = translation.third
+}
 
 data class LandmarkCorrespondence(
     val modelIndex: Int,
     val realIndex: Int,
-    val confidence: Float
-)
+    val confidence: Float,
+    val modelVertex: Triple<Float, Float, Float> = Triple(0f, 0f, 0f),
+    val realLandmark: Triple<Float, Float, Float> = Triple(0f, 0f, 0f)
+) {
+    // Helper properties for easier access
+    val x: Float get() = realLandmark.first
+    val y: Float get() = realLandmark.second
+    val z: Float get() = realLandmark.third
+}
 
 /**
  * Advanced 3D renderer that uses landmark-to-landmark matching for precise face alignment
@@ -449,9 +462,11 @@ class LandmarkAlignedRenderer {
         realLandmarks: List<NormalizedLandmark>
     ): FaceAlignmentTransform {
         // Simple implementation for compilation
+        val correspondences = listOf<LandmarkCorrespondence>()
         return FaceAlignmentTransform(
-            scale = 1f,
-            alignmentScore = 0.5f
+            scale = Triple(1f, 1f, 1f),
+            alignmentScore = 0.5f,
+            correspondences = correspondences
         )
     }
 }

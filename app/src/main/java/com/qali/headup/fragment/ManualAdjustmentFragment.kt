@@ -83,7 +83,6 @@ class ManualAdjustmentFragment : Fragment() {
         
         setupControls()
         observeViewModel()
-        initializeValues()
     }
     
     override fun onDestroyView() {
@@ -439,9 +438,6 @@ class ManualAdjustmentFragment : Fragment() {
                     manualRotationY = savedAdjustments.rotationY
                     manualRotationZ = savedAdjustments.rotationZ
                     landmarkConfidenceThreshold = savedAdjustments.confidenceThreshold
-                    
-                    // Update UI controls to reflect loaded values
-                    updateUIWithLoadedValues()
                     
                     // Apply the loaded adjustments
                     applyManualAdjustments()
