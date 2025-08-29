@@ -110,11 +110,16 @@ class LandmarkAlignedRenderer {
         return try {
             Log.d(TAG, "Calculating landmark alignment for ${realFaceLandmarks.size} real landmarks")
             
-            val alignment = landmarkMatcher.calculateFaceAlignment(
-                faceData,
-                realFaceLandmarks,
-                viewportWidth,
-                viewportHeight
+            val alignmentResult = landmarkMatcher.findBestAlignment(
+                faceData.landmarks ?: emptyList(),
+                realFaceLandmarks
+            )
+            
+            val alignment = FaceAlignmentTransform(
+                scale = Triple(alignmentResult.scale, alignmentResult.scaleX, alignmentResult.scaleY),
+                translation = Triple(alignmentResult.offsetX, alignmentResult.offsetY, alignmentResult.offsetZ),
+                rotation = Triple(alignmentResult.rotationX, alignmentResult.rotationY, alignmentResult.rotationZ),
+                alignmentScore = alignmentResult.confidence
             )
             
             if (alignment != null && alignment.alignmentScore >= MIN_ALIGNMENT_SCORE) {
@@ -365,8 +370,8 @@ class LandmarkAlignedRenderer {
      */
     private fun renderEmergencyMarker(canvas: Canvas, alignment: FaceAlignmentTransform) {
         // Get face center from translation
-        val centerX = alignment.translation.x * viewportWidth * scaleFactor + offsetX
-        val centerY = alignment.translation.y * viewportHeight * scaleFactor + offsetY
+        val centerX = alignment.x * viewportWidth * scaleFactor + offsetX
+        val centerY = alignment.y * viewportHeight * scaleFactor + offsetY
         
         val emergencyPaint = Paint().apply {
             color = Color.GREEN
@@ -405,7 +410,8 @@ class LandmarkAlignedRenderer {
         
         correspondences.forEach { correspondence ->
             // Project model vertex to screen
-            val modelScreen = projectToScreen(correspondence.modelVertex)
+            val modelVertex = Vertex3D(correspondence.modelVertex.first, correspondence.modelVertex.second, correspondence.modelVertex.third)
+            val modelScreen = projectToScreen(modelVertex)
             val realScreen = PointF(
                 correspondence.realLandmark.x * scaleFactor + offsetX,
                 correspondence.realLandmark.y * scaleFactor + offsetY
@@ -443,9 +449,9 @@ class LandmarkAlignedRenderer {
         return """
             Alignment Score: ${alignment.alignmentScore}
             Correspondences: ${alignment.correspondences.size}
-            Translation: (${alignment.translation.x}, ${alignment.translation.y}, ${alignment.translation.z})
-            Rotation: (${alignment.rotation.x}, ${alignment.rotation.y}, ${alignment.rotation.z})
-            Scale: (${alignment.scale.x}, ${alignment.scale.y}, ${alignment.scale.z})
+            Translation: (${alignment.translation.first}, ${alignment.translation.second}, ${alignment.translation.third})
+            Rotation: (${alignment.rotation.first}, ${alignment.rotation.second}, ${alignment.rotation.third})
+            Scale: (${alignment.scale.first}, ${alignment.scale.second}, ${alignment.scale.third})
         """.trimIndent()
     }
     
