@@ -332,13 +332,12 @@ class Model3DPreviewView @JvmOverloads constructor(
     }
     
     /**
-     * Draw landmark preview on the model
+     * Draw landmark preview on the model (landmarks are NOT affected by adjustments)
      */
     private fun drawLandmarkPreview(canvas: Canvas, model: Model3D) {
         val landmarks = model.faceData?.landmarks ?: return
-        val adjustments = manualAdjustments
         
-        // Calculate base scale to fit model in view
+        // Calculate base scale to fit model in view (same as model, but no adjustments applied)
         val modelBounds = calculateModelBounds(model)
         val modelWidth = modelBounds.second.x - modelBounds.first.x
         val modelHeight = modelBounds.second.y - modelBounds.first.y
@@ -346,13 +345,13 @@ class Model3DPreviewView @JvmOverloads constructor(
         
         val baseScale = if (maxDimension > 0) minOf(width, height) * 0.3f / maxDimension else 100f
         
-        // Apply manual adjustments
-        val scale = baseScale * (adjustments?.scale ?: 1f)
-        val scaleX = scale * (adjustments?.scaleX ?: 1f)
-        val scaleY = scale * (adjustments?.scaleY ?: 1f)
-        val offsetX = (adjustments?.offsetX ?: 0f) * 100
-        val offsetY = (adjustments?.offsetY ?: 0f) * 100
-        val rotation = adjustments?.rotationZ ?: 0f
+        // Landmarks use original model positioning (NO manual adjustments applied)
+        val scale = baseScale
+        val scaleX = scale
+        val scaleY = scale
+        val offsetX = 0f
+        val offsetY = 0f
+        val rotation = 0f
         
         val landmarkPaint = Paint().apply {
             color = Color.RED
@@ -360,7 +359,7 @@ class Model3DPreviewView @JvmOverloads constructor(
             isAntiAlias = true
         }
         
-        // Draw each landmark as a small circle
+        // Draw each landmark as a small circle at original positions
         for (landmark in landmarks) {
             val vertex = Vertex3D(landmark.x(), landmark.y(), landmark.z())
             val transformedPoint = transformVertex(vertex, scaleX, scaleY, offsetX, offsetY, rotation)

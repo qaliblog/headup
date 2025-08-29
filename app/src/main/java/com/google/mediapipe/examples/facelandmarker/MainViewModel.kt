@@ -18,6 +18,7 @@ package com.google.mediapipe.examples.facelandmarker
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.LiveData
+import kotlin.math
 
 /**
  *  This ViewModel is used to store face landmarker helper settings and 3D model state
@@ -143,11 +144,22 @@ class MainViewModel : ViewModel() {
     }
     
     suspend fun triggerLandmarkDetection(confidenceThreshold: Float): Boolean {
-        // TODO: Implement manual landmark detection trigger
         return try {
             val currentModel = _current3DModel.value
+            val adjustments = _manualAdjustments.value
+            
             if (currentModel != null) {
-                // Trigger face detection with custom confidence
+                // This method should trigger landmark detection on the adjusted model
+                // The actual detection should be handled by a component that can:
+                // 1. Render the model with current adjustments to a bitmap
+                // 2. Run MediaPipe face detection on that bitmap 
+                // 3. Map the detected landmarks back to model space
+                // 4. Update the model's face data with new landmarks
+                
+                // For now, we'll trigger a flag that indicates landmark detection should happen
+                // This will be picked up by components that have access to the Model3DFaceAnalyzer
+                _landmarkDetectionRequested.postValue(true)
+                
                 true
             } else {
                 false
@@ -157,12 +169,60 @@ class MainViewModel : ViewModel() {
         }
     }
     
+    // Flag to indicate landmark detection has been requested
+    private val _landmarkDetectionRequested = MutableLiveData<Boolean>()
+    val landmarkDetectionRequested: LiveData<Boolean> = _landmarkDetectionRequested
+    
+    fun clearLandmarkDetectionRequest() {
+        _landmarkDetectionRequested.postValue(false)
+    }
+    
+    /**
+     * Create a copy of the model with adjustments applied and re-detect landmarks
+     */
+    private fun createAdjustedModel(originalModel: Model3D, adjustments: ManualAdjustmentData): Model3D {
+        // Apply transformations to vertices
+        val adjustedVertices = originalModel.vertices.map { vertex ->
+            // Apply scale, rotation, and translation
+            val scaledX = vertex.x * adjustments.scaleX * adjustments.scale
+            val scaledY = vertex.y * adjustments.scaleY * adjustments.scale
+            val scaledZ = vertex.z * adjustments.scale
+            
+            // Apply rotation (simplified 2D rotation for now)
+            val radians = Math.toRadians(adjustments.rotationZ.toDouble())
+            val cos = kotlin.math.cos(radians).toFloat()
+            val sin = kotlin.math.sin(radians).toFloat()
+            
+            val rotatedX = scaledX * cos - scaledY * sin
+            val rotatedY = scaledX * sin + scaledY * cos
+            
+            // Apply translation
+            Vertex3D(
+                rotatedX + adjustments.offsetX,
+                rotatedY + adjustments.offsetY,
+                scaledZ + adjustments.offsetZ
+            )
+        }
+        
+        // Create new model with adjusted vertices
+        // Note: This is a simplified implementation - a full implementation would
+        // re-run face detection on the adjusted model geometry
+        return Model3D(
+            vertices = adjustedVertices,
+            faces = originalModel.faces,
+            materials = originalModel.materials,
+            hasFaceData = originalModel.hasFaceData,
+            faceData = originalModel.faceData // Keep original face data for now
+        )
+    }
+    
     fun applyManualAdjustmentsToModel(
         scale: Float, scaleX: Float, scaleY: Float,
         offsetX: Float, offsetY: Float, offsetZ: Float,
         rotationX: Float, rotationY: Float, rotationZ: Float
     ) {
-        // Apply adjustments to current model and update LiveData
+        // Update the manual adjustments for preview and camera rendering
+        // Note: This doesn't modify the actual model geometry, just the adjustments applied during rendering
         setManualAdjustments(scale, scaleX, scaleY, offsetX, offsetY, offsetZ, rotationX, rotationY, rotationZ)
     }
 }

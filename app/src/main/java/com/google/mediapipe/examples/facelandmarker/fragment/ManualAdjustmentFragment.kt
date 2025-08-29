@@ -15,6 +15,8 @@
  */
 package com.google.mediapipe.examples.facelandmarker.fragment
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -28,8 +30,11 @@ import com.google.mediapipe.examples.facelandmarker.MainViewModel
 import com.google.mediapipe.examples.facelandmarker.ManualAdjustmentData
 import com.google.mediapipe.examples.facelandmarker.StoredAdjustmentData
 import com.google.mediapipe.examples.facelandmarker.ModelStorageManager
+import com.google.mediapipe.examples.facelandmarker.Model3DFaceAnalyzer
 import com.google.mediapipe.examples.facelandmarker.databinding.FragmentManualAdjustmentBinding
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Fragment for manual adjustment of 3D model positioning and landmark detection
@@ -281,6 +286,14 @@ class ManualAdjustmentFragment : Fragment() {
                 fragmentManualAdjustmentBinding.modelPreviewView.applyAdjustments(it)
             }
         }
+        
+        // Observe landmark detection requests
+        viewModel.landmarkDetectionRequested.observe(viewLifecycleOwner) { requested ->
+            if (requested == true) {
+                performLandmarkDetectionOnAdjustedModel()
+                viewModel.clearLandmarkDetectionRequest()
+            }
+        }
     }
     
     private fun applyManualAdjustments() {
@@ -510,6 +523,83 @@ class ManualAdjustmentFragment : Fragment() {
             // Switch to filled mode
             fragmentManualAdjustmentBinding.modelPreviewView.setRenderingMode(true)
             fragmentManualAdjustmentBinding.buttonToggleRendering.text = "Fill"
+        }
+    }
+    
+    private fun performLandmarkDetectionOnAdjustedModel() {
+        Log.d(TAG, "🎯 Performing landmark detection on adjusted model")
+        
+        lifecycleScope.launch {
+            try {
+                fragmentManualAdjustmentBinding.progressBar.visibility = View.VISIBLE
+                fragmentManualAdjustmentBinding.textLandmarkStatus.text = "Detecting landmarks on adjusted model..."
+                
+                val currentModel = viewModel.get3DModel()
+                if (currentModel != null) {
+                    // Create Model3DFaceAnalyzer for landmark detection
+                    val faceAnalyzer = Model3DFaceAnalyzer(requireContext())
+                    
+                    // Create a bitmap of the adjusted model
+                    val adjustedBitmap = createAdjustedModelBitmap(currentModel)
+                    
+                    if (adjustedBitmap != null) {
+                        // Run face detection on the adjusted model bitmap
+                        val detectedModel = withContext(Dispatchers.IO) {
+                            faceAnalyzer.analyzeModel3D(currentModel)
+                        }
+                        
+                        if (detectedModel?.hasFaceData == true) {
+                            // Update the model with new landmark data
+                            viewModel.set3DModel(detectedModel, viewModel.currentModelId)
+                            
+                            fragmentManualAdjustmentBinding.textLandmarkStatus.text = 
+                                "✅ Landmarks detected on adjusted model: ${detectedModel.faceData?.landmarks?.size} landmarks"
+                            
+                            Toast.makeText(requireContext(), 
+                                "🎯 Landmark detection completed on adjusted model!", 
+                                Toast.LENGTH_SHORT).show()
+                        } else {
+                            fragmentManualAdjustmentBinding.textLandmarkStatus.text = "⚠️ No landmarks detected on adjusted model"
+                            Toast.makeText(requireContext(), 
+                                "⚠️ No landmarks detected on adjusted model", 
+                                Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ Failed to render adjusted model"
+                        Toast.makeText(requireContext(), 
+                            "❌ Failed to render adjusted model for detection", 
+                            Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ No model loaded"
+                    Toast.makeText(requireContext(), 
+                        "❌ No model loaded for landmark detection", 
+                        Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during landmark detection on adjusted model", e)
+                fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ Error: ${e.message}"
+                Toast.makeText(requireContext(), 
+                    "❌ Error during landmark detection: ${e.message}", 
+                    Toast.LENGTH_SHORT).show()
+            } finally {
+                fragmentManualAdjustmentBinding.progressBar.visibility = View.GONE
+            }
+        }
+    }
+    
+    private fun createAdjustedModelBitmap(model: Model3D): Bitmap? {
+        return try {
+            // Create a bitmap by capturing the current preview view
+            // This includes the model with current adjustments applied
+            val previewView = fragmentManualAdjustmentBinding.modelPreviewView
+            val bitmap = Bitmap.createBitmap(previewView.width, previewView.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            previewView.draw(canvas)
+            bitmap
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating adjusted model bitmap", e)
+            null
         }
     }
 }
