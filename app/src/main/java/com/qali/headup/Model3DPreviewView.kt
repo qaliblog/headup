@@ -19,6 +19,8 @@ import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
 import android.util.Log
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import kotlin.math.*
@@ -72,6 +74,29 @@ class Model3DPreviewView @JvmOverloads constructor(
     private var centerX = 0f
     private var centerY = 0f
     private var viewScale = 1f
+    
+    // Touch control variables
+    private var touchScale = 1f
+    private var touchOffsetX = 0f
+    private var touchOffsetY = 0f
+    private var touchRotationX = 0f
+    private var touchRotationY = 0f
+    private var touchRotationZ = 0f
+    
+    // Gesture detection
+    private lateinit var scaleGestureDetector: ScaleGestureDetector
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var isRotationMode = false
+    private var rotationStartAngle = 0f
+    
+    // Touch callback for external updates
+    private var onAdjustmentChangedListener: ((ManualAdjustmentData) -> Unit)? = null
+    
+    init {
+        // Initialize gesture detectors
+        scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
+    }
     
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -436,5 +461,157 @@ class Model3DPreviewView @JvmOverloads constructor(
         currentModel = null
         manualAdjustments = null
         invalidate()
+    }
+    
+    /**
+     * Set listener for adjustment changes
+     */
+    fun setOnAdjustmentChangedListener(listener: (ManualAdjustmentData) -> Unit) {
+        onAdjustmentChangedListener = listener
+    }
+    
+    /**
+     * Handle touch events for model manipulation
+     */
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        scaleGestureDetector.onTouchEvent(event)
+        
+        when (event.action and MotionEvent.ACTION_MASK) {
+            MotionEvent.ACTION_DOWN -> {
+                lastTouchX = event.x
+                lastTouchY = event.y
+                isRotationMode = false
+                return true
+            }
+            
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                // Two finger touch - rotation mode
+                if (event.pointerCount == 2) {
+                    isRotationMode = true
+                    rotationStartAngle = getRotationAngle(event)
+                }
+                return true
+            }
+            
+            MotionEvent.ACTION_MOVE -> {
+                if (!scaleGestureDetector.isInProgress) {
+                    when (event.pointerCount) {
+                        1 -> {
+                            // Single finger - pan
+                            val dx = event.x - lastTouchX
+                            val dy = event.y - lastTouchY
+                            
+                            touchOffsetX += dx * 0.01f // Scale down the movement
+                            touchOffsetY += dy * 0.01f
+                            
+                            lastTouchX = event.x
+                            lastTouchY = event.y
+                            
+                            updateAdjustments()
+                        }
+                        2 -> {
+                            // Two fingers - rotation
+                            if (isRotationMode) {
+                                val currentAngle = getRotationAngle(event)
+                                val deltaAngle = currentAngle - rotationStartAngle
+                                
+                                touchRotationZ += deltaAngle * 0.5f // Scale down rotation
+                                rotationStartAngle = currentAngle
+                                
+                                updateAdjustments()
+                            }
+                        }
+                    }
+                }
+                return true
+            }
+            
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                if (event.pointerCount <= 1) {
+                    isRotationMode = false
+                }
+                return true
+            }
+        }
+        
+        return super.onTouchEvent(event)
+    }
+    
+    /**
+     * Calculate rotation angle between two fingers
+     */
+    private fun getRotationAngle(event: MotionEvent): Float {
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+    }
+    
+    /**
+     * Update adjustments and notify listener
+     */
+    private fun updateAdjustments() {
+        val adjustmentData = ManualAdjustmentData(
+            scale = touchScale,
+            scaleX = touchScale,
+            scaleY = touchScale,
+            offsetX = touchOffsetX,
+            offsetY = touchOffsetY,
+            offsetZ = 0f,
+            rotationX = touchRotationX,
+            rotationY = touchRotationY,
+            rotationZ = touchRotationZ
+        )
+        
+        // Update internal adjustments
+        manualAdjustments = adjustmentData
+        
+        // Notify listener
+        onAdjustmentChangedListener?.invoke(adjustmentData)
+        
+        // Redraw
+        invalidate()
+    }
+    
+    /**
+     * Scale gesture listener
+     */
+    private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            touchScale *= detector.scaleFactor
+            touchScale = maxOf(0.1f, minOf(touchScale, 3.0f)) // Limit scale range
+            
+            updateAdjustments()
+            return true
+        }
+    }
+    
+    /**
+     * Reset touch adjustments to default
+     */
+    fun resetAdjustments() {
+        touchScale = 1f
+        touchOffsetX = 0f
+        touchOffsetY = 0f
+        touchRotationX = 0f
+        touchRotationY = 0f
+        touchRotationZ = 0f
+        updateAdjustments()
+    }
+    
+    /**
+     * Get current touch-based adjustments
+     */
+    fun getCurrentAdjustments(): ManualAdjustmentData {
+        return ManualAdjustmentData(
+            scale = touchScale,
+            scaleX = touchScale,
+            scaleY = touchScale,
+            offsetX = touchOffsetX,
+            offsetY = touchOffsetY,
+            offsetZ = 0f,
+            rotationX = touchRotationX,
+            rotationY = touchRotationY,
+            rotationZ = touchRotationZ
+        )
     }
 }

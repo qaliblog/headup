@@ -717,6 +717,13 @@ class Model3DFaceAnalyzer(private val context: Context) {
     }
     
     /**
+     * Public method to detect landmarks in any bitmap
+     */
+    fun detectLandmarksInBitmap(bitmap: Bitmap): List<NormalizedLandmark> {
+        return detectFaceLandmarks(bitmap)
+    }
+    
+    /**
      * Map 2D landmarks back to 3D model vertices
      */
     private fun mapLandmarksTo3DVertices(

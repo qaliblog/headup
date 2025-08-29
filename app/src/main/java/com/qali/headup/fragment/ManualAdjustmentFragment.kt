@@ -90,78 +90,37 @@ class ManualAdjustmentFragment : Fragment() {
     }
     
     private fun setupControls() {
-        // Scale controls
-        fragmentManualAdjustmentBinding.seekBarScale.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualScale = (progress / 100f) * 2f // 0.0 to 2.0
-            fragmentManualAdjustmentBinding.textScaleValue.text = String.format("%.2f", manualScale)
-            applyManualAdjustments()
-        })
-        
-        fragmentManualAdjustmentBinding.seekBarScaleX.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualScaleX = (progress / 100f) * 3f // 0.0 to 3.0 for stretching
-            fragmentManualAdjustmentBinding.textScaleXValue.text = String.format("%.2f", manualScaleX)
-            applyManualAdjustments()
-        })
-        
-        fragmentManualAdjustmentBinding.seekBarScaleY.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualScaleY = (progress / 100f) * 3f // 0.0 to 3.0 for stretching
-            fragmentManualAdjustmentBinding.textScaleYValue.text = String.format("%.2f", manualScaleY)
-            applyManualAdjustments()
-        })
-        
-        // Position controls
-        fragmentManualAdjustmentBinding.seekBarOffsetX.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualOffsetX = (progress - 50) / 100f // -0.5 to 0.5
-            fragmentManualAdjustmentBinding.textOffsetXValue.text = String.format("%.3f", manualOffsetX)
-            applyManualAdjustments()
-        })
-        
-        fragmentManualAdjustmentBinding.seekBarOffsetY.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualOffsetY = (progress - 50) / 100f // -0.5 to 0.5
-            fragmentManualAdjustmentBinding.textOffsetYValue.text = String.format("%.3f", manualOffsetY)
-            applyManualAdjustments()
-        })
-        
-        fragmentManualAdjustmentBinding.seekBarOffsetZ.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualOffsetZ = (progress - 50) / 100f // -0.5 to 0.5
-            fragmentManualAdjustmentBinding.textOffsetZValue.text = String.format("%.3f", manualOffsetZ)
-            applyManualAdjustments()
-        })
-        
-        // Rotation controls
-        fragmentManualAdjustmentBinding.seekBarRotationX.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualRotationX = (progress - 180) * 2f // -360° to 360°
-            fragmentManualAdjustmentBinding.textRotationXValue.text = String.format("%.1f°", manualRotationX)
-            applyManualAdjustments()
-        })
-        
-        fragmentManualAdjustmentBinding.seekBarRotationY.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualRotationY = (progress - 180) * 2f // -360° to 360°
-            fragmentManualAdjustmentBinding.textRotationYValue.text = String.format("%.1f°", manualRotationY)
-            applyManualAdjustments()
-        })
-        
-        fragmentManualAdjustmentBinding.seekBarRotationZ.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            manualRotationZ = (progress - 180) * 2f // -360° to 360°
-            fragmentManualAdjustmentBinding.textRotationZValue.text = String.format("%.1f°", manualRotationZ)
-            applyManualAdjustments()
-        })
-        
-        // Landmark detection controls
-        fragmentManualAdjustmentBinding.seekBarLandmarkConfidence.setOnSeekBarChangeListener(createSeekBarListener { progress ->
-            landmarkConfidenceThreshold = progress / 100f // 0.0 to 1.0
-            fragmentManualAdjustmentBinding.textLandmarkConfidenceValue.text = String.format("%.2f", landmarkConfidenceThreshold)
-            applyLandmarkSettings()
-        })
-        
-        fragmentManualAdjustmentBinding.switchLandmarkDetection.setOnCheckedChangeListener { _, isChecked ->
-            landmarkDetectionEnabled = isChecked
-            applyLandmarkSettings()
+        // Setup touch controls for the preview view
+        fragmentManualAdjustmentBinding.modelPreviewView.setOnAdjustmentChangedListener { adjustments ->
+            // Update the current adjustments display
+            updateAdjustmentsDisplay(adjustments)
+            
+            // Update the internal values
+            manualScale = adjustments.scale
+            manualScaleX = adjustments.scaleX
+            manualScaleY = adjustments.scaleY
+            manualOffsetX = adjustments.offsetX
+            manualOffsetY = adjustments.offsetY
+            manualOffsetZ = adjustments.offsetZ
+            manualRotationX = adjustments.rotationX
+            manualRotationY = adjustments.rotationY
+            manualRotationZ = adjustments.rotationZ
+            
+            // Update ViewModel
+            viewModel.setManualAdjustments(
+                manualScale, manualScaleX, manualScaleY,
+                manualOffsetX, manualOffsetY, manualOffsetZ,
+                manualRotationX, manualRotationY, manualRotationZ
+            )
         }
         
         // Action buttons
         fragmentManualAdjustmentBinding.buttonResetAdjustments.setOnClickListener {
             resetToDefaults()
+        }
+        
+        fragmentManualAdjustmentBinding.buttonCaptureAndDetect.setOnClickListener {
+            captureAndDetectLandmarks()
         }
         
         fragmentManualAdjustmentBinding.buttonSaveLandmarkData.setOnClickListener {
@@ -171,14 +130,6 @@ class ManualAdjustmentFragment : Fragment() {
         // Preview controls
         fragmentManualAdjustmentBinding.buttonToggleRendering.setOnClickListener {
             toggleRenderingMode()
-        }
-        
-        fragmentManualAdjustmentBinding.buttonDetectLandmarks.setOnClickListener {
-            triggerLandmarkDetection()
-        }
-        
-        fragmentManualAdjustmentBinding.buttonApplyToModel.setOnClickListener {
-            applyAdjustmentsToModel()
         }
     }
     
@@ -345,24 +296,86 @@ class ManualAdjustmentFragment : Fragment() {
         )
     }
     
+    private fun updateAdjustmentsDisplay(adjustments: ManualAdjustmentData) {
+        val displayText = "Scale: ${String.format("%.2f", adjustments.scale)} | " +
+                         "Position: (${String.format("%.2f", adjustments.offsetX)}, ${String.format("%.2f", adjustments.offsetY)}) | " +
+                         "Rotation: ${String.format("%.0f", adjustments.rotationZ)}°"
+        
+        fragmentManualAdjustmentBinding.textCurrentAdjustments.text = displayText
+    }
+    
     private fun resetToDefaults() {
         Log.d(TAG, "🔄 Resetting to default values")
         
-        manualScale = 1.0f
-        manualScaleX = 1.0f
-        manualScaleY = 1.0f
-        manualOffsetX = 0.0f
-        manualOffsetY = 0.0f
-        manualOffsetZ = 0.0f
-        manualRotationX = 0.0f
-        manualRotationY = 0.0f
-        manualRotationZ = 0.0f
-        landmarkConfidenceThreshold = 0.5f
-        
-        initializeValues()
-        applyManualAdjustments()
+        // Reset the preview view directly
+        fragmentManualAdjustmentBinding.modelPreviewView.resetAdjustments()
         
         Toast.makeText(requireContext(), "Reset to default values", Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun captureAndDetectLandmarks() {
+        Log.d(TAG, "📸 Capturing model and detecting landmarks")
+        
+        lifecycleScope.launch {
+            try {
+                fragmentManualAdjustmentBinding.progressBar.visibility = View.VISIBLE
+                fragmentManualAdjustmentBinding.textLandmarkStatus.text = "Capturing model and detecting landmarks..."
+                
+                val currentModel = viewModel.get3DModel()
+                if (currentModel != null) {
+                    // Get current adjustments from the preview view
+                    val currentAdjustments = fragmentManualAdjustmentBinding.modelPreviewView.getCurrentAdjustments()
+                    
+                    // Create a bitmap of the adjusted model
+                    val adjustedBitmap = captureModelBitmap()
+                    
+                    if (adjustedBitmap != null) {
+                        // Create Model3DFaceAnalyzer for landmark detection
+                        val faceAnalyzer = Model3DFaceAnalyzer(requireContext())
+                        
+                        // Detect landmarks in the captured image
+                        val detectedLandmarks = withContext(Dispatchers.IO) {
+                            faceAnalyzer.detectLandmarksInBitmap(adjustedBitmap)
+                        }
+                        
+                        if (detectedLandmarks.isNotEmpty()) {
+                            // Match detected landmarks to model landmarks and auto-align
+                            autoAlignModelWithDetectedLandmarks(currentModel, detectedLandmarks, currentAdjustments)
+                            
+                            fragmentManualAdjustmentBinding.textLandmarkStatus.text = 
+                                "✅ Landmarks detected and model auto-aligned: ${detectedLandmarks.size} landmarks"
+                            
+                            Toast.makeText(requireContext(), 
+                                "🎯 Model automatically aligned based on detected landmarks!", 
+                                Toast.LENGTH_LONG).show()
+                        } else {
+                            fragmentManualAdjustmentBinding.textLandmarkStatus.text = "⚠️ No landmarks detected in captured image"
+                            Toast.makeText(requireContext(), 
+                                "⚠️ No landmarks detected. Try adjusting model position.", 
+                                Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ Failed to capture model image"
+                        Toast.makeText(requireContext(), 
+                            "❌ Failed to capture model image", 
+                            Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ No model loaded"
+                    Toast.makeText(requireContext(), 
+                        "❌ No model loaded for landmark detection", 
+                        Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during capture and landmark detection", e)
+                fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ Error: ${e.message}"
+                Toast.makeText(requireContext(), 
+                    "❌ Error: ${e.message}", 
+                    Toast.LENGTH_SHORT).show()
+            } finally {
+                fragmentManualAdjustmentBinding.progressBar.visibility = View.GONE
+            }
+        }
     }
     
     private fun saveLandmarkData() {
@@ -598,7 +611,7 @@ class ManualAdjustmentFragment : Fragment() {
         }
     }
     
-    private fun createAdjustedModelBitmap(): Bitmap? {
+    private fun captureModelBitmap(): Bitmap? {
         return try {
             // Create a bitmap by capturing the current preview view
             // This includes the model with current adjustments applied
@@ -608,8 +621,74 @@ class ManualAdjustmentFragment : Fragment() {
             previewView.draw(canvas)
             bitmap
         } catch (e: Exception) {
-            Log.e(TAG, "Error creating adjusted model bitmap", e)
+            Log.e(TAG, "Error creating model bitmap", e)
             null
+        }
+    }
+    
+    private fun autoAlignModelWithDetectedLandmarks(
+        model: Model3D, 
+        detectedLandmarks: List<NormalizedLandmark>,
+        currentAdjustments: ManualAdjustmentData
+    ) {
+        try {
+            Log.d(TAG, "🎯 Auto-aligning model with ${detectedLandmarks.size} detected landmarks")
+            
+            // This is where the magic happens - we match detected landmarks to model landmarks
+            // and calculate the optimal alignment
+            
+            if (model.hasFaceData && model.faceData?.landmarks != null) {
+                val modelLandmarks = model.faceData!!.landmarks
+                
+                // Use landmark matching to calculate optimal alignment
+                val landmarkMatcher = FaceLandmarkMatcher()
+                val matchingResult = landmarkMatcher.findBestAlignment(
+                    modelLandmarks = modelLandmarks,
+                    realFaceLandmarks = detectedLandmarks
+                )
+                
+                if (matchingResult.confidence > 0.3f) {
+                    // Apply the calculated alignment
+                    val optimizedAdjustments = ManualAdjustmentData(
+                        scale = matchingResult.scale,
+                        scaleX = matchingResult.scaleX,
+                        scaleY = matchingResult.scaleY,
+                        offsetX = matchingResult.offsetX,
+                        offsetY = matchingResult.offsetY,
+                        offsetZ = matchingResult.offsetZ,
+                        rotationX = matchingResult.rotationX,
+                        rotationY = matchingResult.rotationY,
+                        rotationZ = matchingResult.rotationZ
+                    )
+                    
+                    // Update the preview view with optimized adjustments
+                    fragmentManualAdjustmentBinding.modelPreviewView.applyAdjustments(optimizedAdjustments)
+                    
+                    // Update the ViewModel
+                    viewModel.setManualAdjustments(
+                        optimizedAdjustments.scale, optimizedAdjustments.scaleX, optimizedAdjustments.scaleY,
+                        optimizedAdjustments.offsetX, optimizedAdjustments.offsetY, optimizedAdjustments.offsetZ,
+                        optimizedAdjustments.rotationX, optimizedAdjustments.rotationY, optimizedAdjustments.rotationZ
+                    )
+                    
+                    Log.d(TAG, "✅ Auto-alignment completed with confidence: ${matchingResult.confidence}")
+                } else {
+                    Log.w(TAG, "⚠️ Low confidence alignment: ${matchingResult.confidence}")
+                    Toast.makeText(requireContext(), 
+                        "⚠️ Low confidence alignment. Manual adjustment may be needed.", 
+                        Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Log.w(TAG, "⚠️ Model has no landmark data for auto-alignment")
+                Toast.makeText(requireContext(), 
+                    "⚠️ Model has no landmark data. Cannot auto-align.", 
+                    Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during auto-alignment", e)
+            Toast.makeText(requireContext(), 
+                "❌ Error during auto-alignment: ${e.message}", 
+                Toast.LENGTH_SHORT).show()
         }
     }
 }
