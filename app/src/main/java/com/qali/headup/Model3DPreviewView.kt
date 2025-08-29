@@ -236,18 +236,12 @@ class Model3DPreviewView @JvmOverloads constructor(
                 applyPerspectiveProjection(vertex, offsetX, offsetY)
             }
             
-            // Calculate face normal for back-face culling (optional - makes it more 3D-like)
-            val normal = calculateFaceNormal(transformed3DVertices)
-            val facingViewer = normal.z > 0 // Simple check if face is facing towards viewer
+            // Create depth-based paint for this face with stronger depth effect
+            val depthFactor = (avgZ + 150f) / 300f // Stronger depth range  
+            val clampedDepth = depthFactor.coerceIn(0.3f, 1.0f) // Keep minimum visibility
             
-            // Create depth-based paint for this face
-            val depthFactor = (avgZ + 300f) / 600f // Normalize depth to 0-1 range  
-            val clampedDepth = depthFactor.coerceIn(0.2f, 1.0f) // Keep minimum visibility
-            
-            // Only render faces that are facing the viewer (optional back-face culling)
-            if (!facingViewer) {
-                continue // Skip back-facing triangles for more 3D appearance
-            }
+            // Temporarily disable back-face culling to see all faces for debugging
+            // TODO: Re-enable once 3D effect is working properly
             
             if (useFilledFaces && transformedVertices.size >= 3) {
                 // Create depth-shaded fill paint
@@ -326,16 +320,21 @@ class Model3DPreviewView @JvmOverloads constructor(
      * Apply perspective projection to convert 3D point to 2D screen coordinates
      */
     private fun applyPerspectiveProjection(vertex3D: Vertex3D, offsetX: Float, offsetY: Float): PointF {
-        // Apply perspective projection to convert 3D to 2D
-        val perspectiveDistance = 500f // Distance from viewer to projection plane
-        val zOffset = 200f // Push model away from viewer to avoid division by zero
+        // Apply stronger perspective projection to create more dramatic 3D effect
+        val perspectiveDistance = 300f // Closer viewer for stronger perspective
+        val zOffset = 150f // Push model away from viewer to avoid division by zero
         
         // Perspective projection: scale by distance/z to create depth effect
         val projectedZ = vertex3D.z + zOffset
-        val perspectiveFactor = if (projectedZ > 0) perspectiveDistance / projectedZ else 1f
+        val perspectiveFactor = if (projectedZ > 0.1f) perspectiveDistance / projectedZ else 1f
         
         val projectedX = vertex3D.x * perspectiveFactor
         val projectedY = vertex3D.y * perspectiveFactor
+        
+        // Add some debug logging to see if perspective is working
+        if (vertex3D.z != 0f) {
+            Log.v("Model3DPreviewView", "Vertex Z=${vertex3D.z}, projectedZ=$projectedZ, factor=$perspectiveFactor")
+        }
         
         // Translate to screen coordinates with perspective
         return PointF(
@@ -502,15 +501,22 @@ class Model3DPreviewView @JvmOverloads constructor(
         val adjustments = manualAdjustments
         if (adjustments != null) {
             val info = "Scale: ${String.format("%.2f", adjustments.scale)} " +
-                      "Pos: (${String.format("%.2f", adjustments.offsetX)}, ${String.format("%.2f", adjustments.offsetY)})"
+                      "Rot: X=${String.format("%.0f", adjustments.rotationX)}° " +
+                      "Y=${String.format("%.0f", adjustments.rotationY)}° " +
+                      "Z=${String.format("%.0f", adjustments.rotationZ)}°"
             
             val infoPaint = Paint().apply {
                 color = Color.WHITE
-                textSize = 24f
+                textSize = 20f
                 isAntiAlias = true
+                setShadowLayer(2f, 1f, 1f, Color.BLACK)
             }
             
-            canvas.drawText(info, 20f, height - 20f, infoPaint)
+            canvas.drawText(info, 20f, height - 40f, infoPaint)
+            
+            // Add debug info about 3D rendering
+            val debugInfo = "3D Rendering: ${if (model.vertices.any { it.z != 0f }) "Active" else "Flat Model"}"
+            canvas.drawText(debugInfo, 20f, height - 20f, infoPaint)
         }
         
         // Draw landmarks if face data is available
