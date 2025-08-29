@@ -15,6 +15,7 @@
  */
 package com.qali.headup
 
+import android.graphics.Color
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -447,7 +448,7 @@ class Model3DParser(private val context: android.content.Context) {
             Log.d(TAG, "GLB parsed: ${allVertices.size} vertices, ${allFaces.size} faces")
             
             // Create initial model without face data
-            val initialModel = Model3D(allVertices, allFaces, centroid, boundingBox)
+            val initialModel = Model3D(allVertices, allFaces, centroid, boundingBox, listOf(Material3D("default")))
             
             // Analyze for facial landmarks
             Log.d(TAG, "Analyzing GLB model for facial features...")
@@ -455,7 +456,7 @@ class Model3DParser(private val context: android.content.Context) {
             
             if (faceData != null) {
                 Log.d(TAG, "Face detected in GLB model: ${faceData.landmarks?.size ?: 0} landmarks")
-                return Model3D(allVertices, allFaces, centroid, boundingBox, faceData)
+                return Model3D(allVertices, allFaces, centroid, boundingBox, listOf(Material3D("default")), faceData)
             } else {
                 Log.w(TAG, "No face detected in GLB model")
                 return initialModel
