@@ -33,6 +33,7 @@ import com.qali.headup.StoredAdjustmentData
 import com.qali.headup.ModelStorageManager
 import com.qali.headup.Model3DFaceAnalyzer
 import com.qali.headup.Model3D
+import com.qali.headup.Model3DFaceData
 import com.qali.headup.databinding.FragmentManualAdjustmentBinding
 import com.qali.headup.FaceLandmarkMatcher
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
@@ -518,7 +519,7 @@ class ManualAdjustmentFragment : Fragment() {
                             viewModel.set3DModel(updatedModel, viewModel.currentModelId)
                             
                             fragmentManualAdjustmentBinding.textLandmarkStatus.text = 
-                                "✅ Landmarks detected on adjusted model: ${faceData.landmarks.size} landmarks"
+                                "✅ Landmarks detected on adjusted model: ${faceData.landmarks?.size ?: 0} landmarks"
                             
                             Toast.makeText(requireContext(), 
                                 "🎯 Landmark detection completed on adjusted model!", 

@@ -191,7 +191,7 @@ class Model3DParser(private val context: android.content.Context) {
             val faceData = faceAnalyzer.analyzeModel3DFace(initialModel)
             
             if (faceData != null) {
-                Log.d(TAG, "Face detected in OBJ model: ${faceData.landmarks.size} landmarks")
+                Log.d(TAG, "Face detected in OBJ model: ${faceData.landmarks?.size ?: 0} landmarks")
                 Model3D(vertices, faces, centroid, boundingBox, faceData)
             } else {
                 Log.w(TAG, "No face detected in OBJ model")
@@ -423,7 +423,7 @@ class Model3DParser(private val context: android.content.Context) {
             val faceData = faceAnalyzer.analyzeModel3DFace(initialModel)
             
             if (faceData != null) {
-                Log.d(TAG, "Face detected in GLB model: ${faceData.landmarks.size} landmarks")
+                Log.d(TAG, "Face detected in GLB model: ${faceData.landmarks?.size ?: 0} landmarks")
                 return Model3D(allVertices, allFaces, centroid, boundingBox, faceData)
             } else {
                 Log.w(TAG, "No face detected in GLB model")
