@@ -85,8 +85,6 @@ class Model3DPreviewView @JvmOverloads constructor(
     private lateinit var scaleGestureDetector: ScaleGestureDetector
     private var lastTouchX = 0f
     private var lastTouchY = 0f
-    private var isRotationMode = false
-    private var rotationStartAngle = 0f
     
     // Touch callback for external updates
     private var onAdjustmentChangedListener: ((ManualAdjustmentData) -> Unit)? = null
@@ -466,77 +464,71 @@ class Model3DPreviewView @JvmOverloads constructor(
      * Handle touch events for model manipulation
      */
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        // Always consume touch events to prevent scrolling
+        parent?.requestDisallowInterceptTouchEvent(true)
+        
         scaleGestureDetector.onTouchEvent(event)
         
         when (event.action and MotionEvent.ACTION_MASK) {
             MotionEvent.ACTION_DOWN -> {
                 lastTouchX = event.x
                 lastTouchY = event.y
-                isRotationMode = false
-                return true
-            }
-            
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                // Two finger touch - rotation mode
-                if (event.pointerCount == 2) {
-                    isRotationMode = true
-                    rotationStartAngle = getRotationAngle(event)
-                    // Track center position for rotation reference
-                    lastTouchX = (event.getX(0) + event.getX(1)) / 2
-                    lastTouchY = (event.getY(0) + event.getY(1)) / 2
-                }
                 return true
             }
             
             MotionEvent.ACTION_MOVE -> {
-                if (!scaleGestureDetector.isInProgress && event.pointerCount == 2) {
-                    // Two fingers - rotation
-                    if (isRotationMode) {
-                        val currentAngle = getRotationAngle(event)
-                        val deltaAngle = currentAngle - rotationStartAngle
-                        
-                        // Convert angle change to rotation (more sensitive)
-                        touchRotationZ += deltaAngle * 0.8f 
-                        
-                        // Also add vertical movement for X-axis rotation (pitch)
-                        val centerY = (event.getY(0) + event.getY(1)) / 2
-                        val deltaY = centerY - lastTouchY
-                        touchRotationX += deltaY * 0.3f
-                        
-                        // Add horizontal movement for Y-axis rotation (yaw)  
-                        val centerX = (event.getX(0) + event.getX(1)) / 2
-                        val deltaX = centerX - lastTouchX
-                        touchRotationY += deltaX * 0.3f
-                        
-                        rotationStartAngle = currentAngle
-                        lastTouchX = centerX
-                        lastTouchY = centerY
-                        
-                        updateAdjustments()
+                if (!scaleGestureDetector.isInProgress && event.pointerCount == 1) {
+                    // Single finger - rotation
+                    val dx = event.x - lastTouchX
+                    val dy = event.y - lastTouchY
+                    
+                    // Calculate center of view for Z-axis rotation
+                    val centerX = width / 2f
+                    val centerY = height / 2f
+                    
+                    // If touch is in the outer area, add Z-axis rotation
+                    val distanceFromCenter = kotlin.math.sqrt((event.x - centerX) * (event.x - centerX) + (event.y - centerY) * (event.y - centerY))
+                    val maxRadius = kotlin.math.min(width, height) / 2f
+                    
+                    if (distanceFromCenter > maxRadius * 0.6f) {
+                        // Outer area - add some Z-axis rotation based on circular motion
+                        val angle1 = kotlin.math.atan2(lastTouchY - centerY, lastTouchX - centerX)
+                        val angle2 = kotlin.math.atan2(event.y - centerY, event.x - centerX)
+                        val deltaAngle = angle2 - angle1
+                        touchRotationZ += Math.toDegrees(deltaAngle.toDouble()).toFloat() * 0.5f
                     }
+                    
+                    // Convert linear movement to rotation
+                    touchRotationY += dx * 0.5f  // Horizontal movement -> Y-axis rotation (yaw)
+                    touchRotationX += dy * 0.5f  // Vertical movement -> X-axis rotation (pitch)
+                    
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+                    
+                    updateAdjustments()
                 }
                 return true
             }
             
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+            MotionEvent.ACTION_UP -> {
+                // Allow parent to intercept touch events again
+                parent?.requestDisallowInterceptTouchEvent(false)
+                return true
+            }
+            
+            MotionEvent.ACTION_POINTER_UP -> {
+                // Allow parent to intercept touch events again when all fingers lift
                 if (event.pointerCount <= 1) {
-                    isRotationMode = false
+                    parent?.requestDisallowInterceptTouchEvent(false)
                 }
                 return true
             }
         }
         
-        return super.onTouchEvent(event)
+        return true
     }
     
-    /**
-     * Calculate rotation angle between two fingers
-     */
-    private fun getRotationAngle(event: MotionEvent): Float {
-        val dx = event.getX(0) - event.getX(1)
-        val dy = event.getY(0) - event.getY(1)
-        return Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-    }
+
     
     /**
      * Update adjustments and notify listener
