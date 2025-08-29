@@ -91,7 +91,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="• Single finger: Pan (move)\n• Pinch: Scale (zoom)\n• Two fingers: Rotate"
+            android:text="• Pinch: Scale (zoom)\n• Two fingers: Rotate model (drag to rotate around X/Y/Z axes)"
             android:textSize="14sp"
             android:textColor="@android:color/darker_gray"
             android:layout_marginBottom="16dp"

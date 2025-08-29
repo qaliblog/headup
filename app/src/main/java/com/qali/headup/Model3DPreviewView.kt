@@ -77,8 +77,6 @@ class Model3DPreviewView @JvmOverloads constructor(
     
     // Touch control variables
     private var touchScale = 1f
-    private var touchOffsetX = 0f
-    private var touchOffsetY = 0f
     private var touchRotationX = 0f
     private var touchRotationY = 0f
     private var touchRotationZ = 0f
@@ -483,38 +481,38 @@ class Model3DPreviewView @JvmOverloads constructor(
                 if (event.pointerCount == 2) {
                     isRotationMode = true
                     rotationStartAngle = getRotationAngle(event)
+                    // Track center position for rotation reference
+                    lastTouchX = (event.getX(0) + event.getX(1)) / 2
+                    lastTouchY = (event.getY(0) + event.getY(1)) / 2
                 }
                 return true
             }
             
             MotionEvent.ACTION_MOVE -> {
-                if (!scaleGestureDetector.isInProgress) {
-                    when (event.pointerCount) {
-                        1 -> {
-                            // Single finger - pan
-                            val dx = event.x - lastTouchX
-                            val dy = event.y - lastTouchY
-                            
-                            touchOffsetX += dx * 0.01f // Scale down the movement
-                            touchOffsetY += dy * 0.01f
-                            
-                            lastTouchX = event.x
-                            lastTouchY = event.y
-                            
-                            updateAdjustments()
-                        }
-                        2 -> {
-                            // Two fingers - rotation
-                            if (isRotationMode) {
-                                val currentAngle = getRotationAngle(event)
-                                val deltaAngle = currentAngle - rotationStartAngle
-                                
-                                touchRotationZ += deltaAngle * 0.5f // Scale down rotation
-                                rotationStartAngle = currentAngle
-                                
-                                updateAdjustments()
-                            }
-                        }
+                if (!scaleGestureDetector.isInProgress && event.pointerCount == 2) {
+                    // Two fingers - rotation
+                    if (isRotationMode) {
+                        val currentAngle = getRotationAngle(event)
+                        val deltaAngle = currentAngle - rotationStartAngle
+                        
+                        // Convert angle change to rotation (more sensitive)
+                        touchRotationZ += deltaAngle * 0.8f 
+                        
+                        // Also add vertical movement for X-axis rotation (pitch)
+                        val centerY = (event.getY(0) + event.getY(1)) / 2
+                        val deltaY = centerY - lastTouchY
+                        touchRotationX += deltaY * 0.3f
+                        
+                        // Add horizontal movement for Y-axis rotation (yaw)  
+                        val centerX = (event.getX(0) + event.getX(1)) / 2
+                        val deltaX = centerX - lastTouchX
+                        touchRotationY += deltaX * 0.3f
+                        
+                        rotationStartAngle = currentAngle
+                        lastTouchX = centerX
+                        lastTouchY = centerY
+                        
+                        updateAdjustments()
                     }
                 }
                 return true
@@ -548,8 +546,8 @@ class Model3DPreviewView @JvmOverloads constructor(
             scale = touchScale,
             scaleX = touchScale,
             scaleY = touchScale,
-            offsetX = touchOffsetX,
-            offsetY = touchOffsetY,
+            offsetX = 0f,  // No panning
+            offsetY = 0f,  // No panning
             offsetZ = 0f,
             rotationX = touchRotationX,
             rotationY = touchRotationY,
@@ -584,8 +582,6 @@ class Model3DPreviewView @JvmOverloads constructor(
      */
     fun resetAdjustments() {
         touchScale = 1f
-        touchOffsetX = 0f
-        touchOffsetY = 0f
         touchRotationX = 0f
         touchRotationY = 0f
         touchRotationZ = 0f
@@ -600,8 +596,8 @@ class Model3DPreviewView @JvmOverloads constructor(
             scale = touchScale,
             scaleX = touchScale,
             scaleY = touchScale,
-            offsetX = touchOffsetX,
-            offsetY = touchOffsetY,
+            offsetX = 0f,  // No panning
+            offsetY = 0f,  // No panning
             offsetZ = 0f,
             rotationX = touchRotationX,
             rotationY = touchRotationY,
@@ -614,8 +610,6 @@ class Model3DPreviewView @JvmOverloads constructor(
      */
     fun applyAdjustments(adjustments: ManualAdjustmentData) {
         touchScale = adjustments.scale
-        touchOffsetX = adjustments.offsetX
-        touchOffsetY = adjustments.offsetY
         touchRotationX = adjustments.rotationX
         touchRotationY = adjustments.rotationY
         touchRotationZ = adjustments.rotationZ

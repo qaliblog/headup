@@ -230,8 +230,9 @@ class ManualAdjustmentFragment : Fragment() {
     
     private fun updateAdjustmentsDisplay(adjustments: ManualAdjustmentData) {
         val displayText = "Scale: ${String.format("%.2f", adjustments.scale)} | " +
-                         "Position: (${String.format("%.2f", adjustments.offsetX)}, ${String.format("%.2f", adjustments.offsetY)}) | " +
-                         "Rotation: ${String.format("%.0f", adjustments.rotationZ)}°"
+                         "Rotation: X=${String.format("%.0f", adjustments.rotationX)}° " +
+                         "Y=${String.format("%.0f", adjustments.rotationY)}° " +
+                         "Z=${String.format("%.0f", adjustments.rotationZ)}°"
         
         fragmentManualAdjustmentBinding.textCurrentAdjustments.text = displayText
     }
