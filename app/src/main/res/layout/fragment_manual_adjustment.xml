@@ -148,7 +148,7 @@
                 android:id="@+id/button_capture_and_detect"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="📸 Capture & Detect Landmarks"
+                android:text="📸 Capture &amp; Detect Landmarks"
                 android:layout_marginBottom="8dp"
                 android:backgroundTint="@android:color/holo_blue_bright" />
 

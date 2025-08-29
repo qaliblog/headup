@@ -614,4 +614,25 @@ class Model3DPreviewView @JvmOverloads constructor(
             rotationZ = touchRotationZ
         )
     }
+    
+    /**
+     * Apply specific adjustments to the model
+     */
+    fun applyAdjustments(adjustments: ManualAdjustmentData) {
+        touchScale = adjustments.scale
+        touchOffsetX = adjustments.offsetX
+        touchOffsetY = adjustments.offsetY
+        touchRotationX = adjustments.rotationX
+        touchRotationY = adjustments.rotationY
+        touchRotationZ = adjustments.rotationZ
+        
+        // Update internal adjustments
+        manualAdjustments = adjustments
+        
+        // Notify listener
+        onAdjustmentChangedListener?.invoke(adjustments)
+        
+        // Redraw
+        invalidate()
+    }
 }
