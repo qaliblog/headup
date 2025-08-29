@@ -208,7 +208,7 @@ class CameraFragment : Fragment(), FaceLandmarkerHelper.LandmarkerListener {
     private fun loadTestCubeDirectly() {
         Log.d(TAG, "=== FORCE LOADING TEST CUBE ===")
         try {
-            val parser = com.google.mediapipe.examples.facelandmarker.Model3DParser(requireContext())
+            val parser = com.qali.headup.Model3DParser(requireContext())
             val testCube = parser.createTestCube(1.0f)
             viewModel.set3DModel(testCube)
             Log.d(TAG, "Test cube loaded directly: ${testCube.vertices.size} vertices")
