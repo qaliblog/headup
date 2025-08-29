@@ -31,6 +31,7 @@ import com.google.mediapipe.examples.facelandmarker.ManualAdjustmentData
 import com.google.mediapipe.examples.facelandmarker.StoredAdjustmentData
 import com.google.mediapipe.examples.facelandmarker.ModelStorageManager
 import com.google.mediapipe.examples.facelandmarker.Model3DFaceAnalyzer
+import com.google.mediapipe.examples.facelandmarker.Model3D
 import com.google.mediapipe.examples.facelandmarker.databinding.FragmentManualAdjustmentBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -540,20 +541,29 @@ class ManualAdjustmentFragment : Fragment() {
                     val faceAnalyzer = Model3DFaceAnalyzer(requireContext())
                     
                     // Create a bitmap of the adjusted model
-                    val adjustedBitmap = createAdjustedModelBitmap(currentModel)
+                    val adjustedBitmap = createAdjustedModelBitmap()
                     
                     if (adjustedBitmap != null) {
-                        // Run face detection on the adjusted model bitmap
-                        val detectedModel = withContext(Dispatchers.IO) {
-                            faceAnalyzer.analyzeModel3D(currentModel)
+                        // Run face detection on the adjusted model
+                        val faceData = withContext(Dispatchers.IO) {
+                            faceAnalyzer.analyzeModel3DFace(currentModel)
                         }
                         
-                        if (detectedModel?.hasFaceData == true) {
+                        if (faceData != null) {
+                            // Create updated model with new face data
+                            val updatedModel = Model3D(
+                                vertices = currentModel.vertices,
+                                faces = currentModel.faces,
+                                centroid = currentModel.centroid,
+                                boundingBox = currentModel.boundingBox,
+                                faceData = faceData
+                            )
+                            
                             // Update the model with new landmark data
-                            viewModel.set3DModel(detectedModel, viewModel.currentModelId)
+                            viewModel.set3DModel(updatedModel, viewModel.currentModelId)
                             
                             fragmentManualAdjustmentBinding.textLandmarkStatus.text = 
-                                "✅ Landmarks detected on adjusted model: ${detectedModel.faceData?.landmarks?.size} landmarks"
+                                "✅ Landmarks detected on adjusted model: ${faceData.landmarks.size} landmarks"
                             
                             Toast.makeText(requireContext(), 
                                 "🎯 Landmark detection completed on adjusted model!", 
@@ -588,7 +598,7 @@ class ManualAdjustmentFragment : Fragment() {
         }
     }
     
-    private fun createAdjustedModelBitmap(model: Model3D): Bitmap? {
+    private fun createAdjustedModelBitmap(): Bitmap? {
         return try {
             // Create a bitmap by capturing the current preview view
             // This includes the model with current adjustments applied

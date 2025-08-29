@@ -18,7 +18,8 @@ package com.google.mediapipe.examples.facelandmarker
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.LiveData
-import kotlin.math
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  *  This ViewModel is used to store face landmarker helper settings and 3D model state
@@ -210,8 +211,8 @@ class MainViewModel : ViewModel() {
         return Model3D(
             vertices = adjustedVertices,
             faces = originalModel.faces,
-            materials = originalModel.materials,
-            hasFaceData = originalModel.hasFaceData,
+            centroid = originalModel.centroid,
+            boundingBox = originalModel.boundingBox,
             faceData = originalModel.faceData // Keep original face data for now
         )
     }
