@@ -212,7 +212,7 @@ class Model3DPreviewView @JvmOverloads constructor(
         val offsetX = (adjustments?.offsetX ?: 0f) * 100
         val offsetY = (adjustments?.offsetY ?: 0f) * 100
         
-        // Draw faces
+        // Draw faces with depth-based shading
         for (face in model.faces) {
             val vertices = listOf(
                 getVertex(model, face.v1),
@@ -220,27 +220,156 @@ class Model3DPreviewView @JvmOverloads constructor(
                 getVertex(model, face.v3)
             )
             
-            val transformedVertices = vertices.map { vertex ->
-                transformVertex(vertex, scaleX, scaleY, offsetX, offsetY, 
+            // Apply 3D transformations to vertices first to get proper depth
+            val transformed3DVertices = vertices.map { vertex ->
+                apply3DTransformations(vertex, scaleX, scaleY, 
                     adjustments?.rotationX ?: 0f,
                     adjustments?.rotationY ?: 0f, 
                     adjustments?.rotationZ ?: 0f)
             }
             
+            // Calculate average Z depth after 3D transformations for proper depth sorting
+            val avgZ = transformed3DVertices.map { it.z }.average().toFloat()
+            
+            // Apply perspective projection for 2D display
+            val transformedVertices = transformed3DVertices.map { vertex ->
+                applyPerspectiveProjection(vertex, offsetX, offsetY)
+            }
+            
+            // Calculate face normal for back-face culling (optional - makes it more 3D-like)
+            val normal = calculateFaceNormal(transformed3DVertices)
+            val facingViewer = normal.z > 0 // Simple check if face is facing towards viewer
+            
+            // Create depth-based paint for this face
+            val depthFactor = (avgZ + 300f) / 600f // Normalize depth to 0-1 range  
+            val clampedDepth = depthFactor.coerceIn(0.2f, 1.0f) // Keep minimum visibility
+            
+            // Only render faces that are facing the viewer (optional back-face culling)
+            if (!facingViewer) {
+                continue // Skip back-facing triangles for more 3D appearance
+            }
+            
             if (useFilledFaces && transformedVertices.size >= 3) {
-                // Draw filled triangle first (as base)
-                drawTriangle(canvas, transformedVertices, filledPaint)
+                // Create depth-shaded fill paint
+                val depthFilledPaint = Paint(filledPaint).apply {
+                    alpha = (clampedDepth * 255).toInt()
+                }
+                // Draw filled triangle first (as base) with depth shading
+                drawTriangle(canvas, transformedVertices, depthFilledPaint)
                 // Draw wireframe on top for definition
                 drawTriangle(canvas, transformedVertices, modelPaint)
             } else {
-                // Draw wireframe only
-                drawTriangle(canvas, transformedVertices, modelPaint)
+                // Draw wireframe only with depth-based alpha
+                val depthWirePaint = Paint(modelPaint).apply {
+                    alpha = (clampedDepth * 255).toInt()
+                }
+                drawTriangle(canvas, transformedVertices, depthWirePaint)
             }
         }
     }
     
     /**
-     * Transform a vertex with manual adjustments including 3D rotations
+     * Apply 3D transformations (scaling and rotations) without perspective projection
+     */
+    private fun apply3DTransformations(
+        vertex: Vertex3D,
+        scaleX: Float,
+        scaleY: Float,
+        rotationX: Float, // Pitch
+        rotationY: Float, // Yaw  
+        rotationZ: Float  // Roll
+    ): Vertex3D {
+        // Start with scaled vertex
+        var x = vertex.x * scaleX
+        var y = vertex.y * scaleY  
+        var z = vertex.z
+        
+        // Apply 3D rotations in order: X (pitch) -> Y (yaw) -> Z (roll)
+        
+        // Rotation around X-axis (Pitch)
+        if (rotationX != 0f) {
+            val radX = Math.toRadians(rotationX.toDouble())
+            val cosX = cos(radX).toFloat()
+            val sinX = sin(radX).toFloat()
+            val newY = y * cosX - z * sinX
+            val newZ = y * sinX + z * cosX
+            y = newY
+            z = newZ
+        }
+        
+        // Rotation around Y-axis (Yaw)  
+        if (rotationY != 0f) {
+            val radY = Math.toRadians(rotationY.toDouble())
+            val cosY = cos(radY).toFloat()
+            val sinY = sin(radY).toFloat()
+            val newX = x * cosY + z * sinY
+            val newZ = -x * sinY + z * cosY
+            x = newX
+            z = newZ
+        }
+        
+        // Rotation around Z-axis (Roll)
+        if (rotationZ != 0f) {
+            val radZ = Math.toRadians(rotationZ.toDouble())
+            val cosZ = cos(radZ).toFloat()
+            val sinZ = sin(radZ).toFloat()
+            val newX = x * cosZ - y * sinZ
+            val newY = x * sinZ + y * cosZ
+            x = newX
+            y = newY
+        }
+        
+        return Vertex3D(x, y, z)
+    }
+    
+    /**
+     * Apply perspective projection to convert 3D point to 2D screen coordinates
+     */
+    private fun applyPerspectiveProjection(vertex3D: Vertex3D, offsetX: Float, offsetY: Float): PointF {
+        // Apply perspective projection to convert 3D to 2D
+        val perspectiveDistance = 500f // Distance from viewer to projection plane
+        val zOffset = 200f // Push model away from viewer to avoid division by zero
+        
+        // Perspective projection: scale by distance/z to create depth effect
+        val projectedZ = vertex3D.z + zOffset
+        val perspectiveFactor = if (projectedZ > 0) perspectiveDistance / projectedZ else 1f
+        
+        val projectedX = vertex3D.x * perspectiveFactor
+        val projectedY = vertex3D.y * perspectiveFactor
+        
+        // Translate to screen coordinates with perspective
+        return PointF(
+            centerX + projectedX + offsetX,
+            centerY + projectedY + offsetY
+        )
+    }
+    
+    /**
+     * Calculate face normal vector for back-face culling
+     */
+    private fun calculateFaceNormal(vertices: List<Vertex3D>): Vertex3D {
+        if (vertices.size < 3) return Vertex3D(0f, 0f, 1f)
+        
+        val v1 = vertices[0]
+        val v2 = vertices[1] 
+        val v3 = vertices[2]
+        
+        // Calculate two edge vectors
+        val edge1 = Vertex3D(v2.x - v1.x, v2.y - v1.y, v2.z - v1.z)
+        val edge2 = Vertex3D(v3.x - v1.x, v3.y - v1.y, v3.z - v1.z)
+        
+        // Cross product to get normal
+        val normal = Vertex3D(
+            edge1.y * edge2.z - edge1.z * edge2.y,
+            edge1.z * edge2.x - edge1.x * edge2.z,
+            edge1.x * edge2.y - edge1.y * edge2.x
+        )
+        
+        return normal
+    }
+
+    /**
+     * Transform a vertex with manual adjustments including 3D rotations (LEGACY METHOD)
      */
     private fun transformVertex(
         vertex: Vertex3D,
@@ -292,10 +421,21 @@ class Model3DPreviewView @JvmOverloads constructor(
             y = newY
         }
         
-        // Translate to screen coordinates
+        // Apply perspective projection to convert 3D to 2D
+        val perspectiveDistance = 500f // Distance from viewer to projection plane
+        val zOffset = 200f // Push model away from viewer to avoid division by zero
+        
+        // Perspective projection: scale by distance/z to create depth effect
+        val projectedZ = z + zOffset
+        val perspectiveFactor = if (projectedZ > 0) perspectiveDistance / projectedZ else 1f
+        
+        val projectedX = x * perspectiveFactor
+        val projectedY = y * perspectiveFactor
+        
+        // Translate to screen coordinates with perspective
         return PointF(
-            centerX + x + offsetX,
-            centerY + y + offsetY
+            centerX + projectedX + offsetX,
+            centerY + projectedY + offsetY
         )
     }
     
