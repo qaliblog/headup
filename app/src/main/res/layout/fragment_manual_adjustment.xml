@@ -30,7 +30,7 @@
             android:layout_marginBottom="16dp"
             android:background="@android:color/black">
 
-            <com.google.mediapipe.examples.facelandmarker.Model3DPreviewView
+            <com.qali.headup.Model3DPreviewView
                 android:id="@+id/model_preview_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
