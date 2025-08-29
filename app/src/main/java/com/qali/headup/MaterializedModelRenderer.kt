@@ -138,7 +138,7 @@ class MaterializedModelRenderer {
     /**
      * Render the 3D model with enhanced graphics and materials
      */
-    fun render(canvas: Canvas, paint: Paint): Boolean {
+    fun render(canvas: Canvas, @Suppress("UNUSED_PARAMETER") paint: Paint): Boolean {
         val model = currentModel ?: return false
         
         return try {
@@ -251,7 +251,7 @@ class MaterializedModelRenderer {
         // Calculate lighting direction (simulate light from top-left)
         val lightDirection = Vertex3D(-0.3f, -0.5f, 1.0f).normalize()
         
-        for ((index, face) in model.faces.withIndex()) {
+        for ((@Suppress("UNUSED_VARIABLE") index, face) in model.faces.withIndex()) {
             val vertexIndices = listOf(face.v1, face.v2, face.v3)
             
             if (vertexIndices.all { it < screenVertices.size }) {

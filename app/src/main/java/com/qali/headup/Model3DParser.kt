@@ -172,7 +172,7 @@ class Model3DParser(private val context: android.content.Context) {
             val faces = mutableListOf<Face3D>()
             val materials = mutableListOf<Material3D>()
             var currentMaterialIndex = 0
-            var mtlFile: String? = null
+            @Suppress("UNUSED_VARIABLE") var mtlFile: String? = null
             
             content.lines().forEach { line ->
                 val trimmedLine = line.trim()
@@ -223,7 +223,7 @@ class Model3DParser(private val context: android.content.Context) {
             val faceData = faceAnalyzer.analyzeModel3DFace(initialModel)
             
             if (faceData != null) {
-                Log.d(TAG, "Face detected in OBJ model: ${faceData.landmarks?.size ?: 0} landmarks")
+                Log.d(TAG, "Face detected in OBJ model: ${faceData.landmarks.size} landmarks")
                 Model3D(vertices, faces, centroid, boundingBox, materials, faceData)
             } else {
                 Log.w(TAG, "No face detected in OBJ model")
@@ -455,7 +455,7 @@ class Model3DParser(private val context: android.content.Context) {
             val faceData = faceAnalyzer.analyzeModel3DFace(initialModel)
             
             if (faceData != null) {
-                Log.d(TAG, "Face detected in GLB model: ${faceData.landmarks?.size ?: 0} landmarks")
+                Log.d(TAG, "Face detected in GLB model: ${faceData.landmarks.size} landmarks")
                 return Model3D(allVertices, allFaces, centroid, boundingBox, listOf(Material3D("default")), faceData)
             } else {
                 Log.w(TAG, "No face detected in GLB model")

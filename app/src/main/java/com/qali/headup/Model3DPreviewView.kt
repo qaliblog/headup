@@ -83,7 +83,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     private var touchRotationZ = 0f
     
     // Gesture detection
-    private lateinit var scaleGestureDetector: ScaleGestureDetector
+    private var scaleGestureDetector: ScaleGestureDetector
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     
@@ -311,7 +311,7 @@ class Model3DPreviewView @JvmOverloads constructor(
             style = Paint.Style.FILL
         }
         
-        for ((index, vertex) in model.vertices.take(20).withIndex()) { // Show first 20 vertices
+        for ((@Suppress("UNUSED_VARIABLE") index, vertex) in model.vertices.take(20).withIndex()) { // Show first 20 vertices
             val x = centerX + vertex.x * scale * 0.1f
             val y = centerY + vertex.y * scale * 0.1f
             canvas.drawCircle(x, y, 3f, vertexPaint)
@@ -374,11 +374,11 @@ class Model3DPreviewView @JvmOverloads constructor(
         
         // Render all faces with proper 3D depth effects
         for ((faceIndex, faceData) in facesWithDepth.withIndex()) {
-            val (transformed3D, avgZ, screenPoints) = faceData
+            val (transformed3D, @Suppress("UNUSED_VARIABLE") avgZ, screenPoints) = faceData
             
             // Calculate lighting based on face normal
             val normal = calculateFaceNormal(transformed3D)
-            val lightVector = Vertex3D(0f, 0f, 1f) // Light coming from viewer
+            @Suppress("UNUSED_VARIABLE") val lightVector = Vertex3D(0f, 0f, 1f) // Light coming from viewer
             val lightIntensity = maxOf(0.2f, normal.z * 0.8f + 0.3f) // Simple lighting
             
             // Get actual material color from model
