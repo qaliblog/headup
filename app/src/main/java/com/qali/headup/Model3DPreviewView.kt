@@ -39,10 +39,11 @@ class Model3DPreviewView @JvmOverloads constructor(
     private var currentModel: Model3D? = null
     private var manualAdjustments: ManualAdjustmentData? = null
     
-    // Rendering
+    // Rendering - prioritize MaterializedModelRenderer for proper materials
     private val materializedRenderer = MaterializedModelRenderer()
     private val preciseRenderer = PreciseModelRenderer()
     private var useFilledFaces = true
+    private var useMaterialRendering = true // Enable material rendering by default
     
     // Paint objects
     private val modelPaint = Paint().apply {
@@ -126,11 +127,55 @@ class Model3DPreviewView @JvmOverloads constructor(
             return
         }
         
-        // Always use basic wireframe rendering for now to ensure touch controls work
-        renderBasicWireframe(canvas, model)
+        // Try materialized rendering first for proper materials, fallback to wireframe
+        if (useMaterialRendering && tryMaterializedRendering(canvas, model)) {
+            // Successfully rendered with materials
+            Log.d("Model3DPreviewView", "Rendered with materials for face detection")
+        } else {
+            // Fallback to basic 3D wireframe
+            renderBasicWireframe(canvas, model)
+            Log.d("Model3DPreviewView", "Fallback to wireframe rendering")
+        }
         drawModelInfo(canvas, model)
     }
     
+    /**
+     * Try to render using MaterializedModelRenderer for proper materials/textures
+     */
+    private fun tryMaterializedRendering(canvas: Canvas, model: Model3D): Boolean {
+        return try {
+            // Set up the materialized renderer with current model and adjustments
+            materializedRenderer.setModel(model)
+            materializedRenderer.setManualAdjustments(manualAdjustments)
+            materializedRenderer.updateScreenParameters(
+                width, height, 
+                calculateBaseScale(model),
+                (manualAdjustments?.offsetX ?: 0f) * 100f,
+                (manualAdjustments?.offsetY ?: 0f) * 100f
+            )
+            
+            // Attempt to render with materials
+            materializedRenderer.render(canvas, modelPaint)
+        } catch (e: Exception) {
+            Log.w("Model3DPreviewView", "MaterializedModelRenderer failed: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * Calculate base scale for the model
+     */
+    private fun calculateBaseScale(model: Model3D): Float {
+        val modelBounds = calculateModelBounds(model)
+        val modelWidth = modelBounds.second.x - modelBounds.first.x
+        val modelHeight = modelBounds.second.y - modelBounds.first.y
+        val modelDepth = modelBounds.second.z - modelBounds.first.z
+        val maxDimension = maxOf(modelWidth, modelHeight, modelDepth)
+        
+        val baseScale = if (maxDimension > 0) minOf(width, height) * 0.4f / maxDimension else 100f
+        return baseScale * (manualAdjustments?.scale ?: 1f)
+    }
+
     /**
      * Render the model with applied manual adjustments
      */
@@ -534,7 +579,8 @@ class Model3DPreviewView @JvmOverloads constructor(
             val hasDepth = model.vertices.any { it.z != 0f }
             val minZ = model.vertices.minOfOrNull { it.z } ?: 0f
             val maxZ = model.vertices.maxOfOrNull { it.z } ?: 0f
-            val debugInfo = "3D: ${if (hasDepth) "TRUE 3D" else "FLAT"} Z-range: ${String.format("%.1f", minZ)} to ${String.format("%.1f", maxZ)}"
+            val renderingMode = if (useMaterialRendering && materializedRenderer.hasValidModel()) "MATERIALS" else "WIREFRAME"
+            val debugInfo = "3D: ${if (hasDepth) "TRUE 3D" else "FLAT"} | Mode: $renderingMode | Z: ${String.format("%.1f", minZ)} to ${String.format("%.1f", maxZ)}"
             canvas.drawText(debugInfo, 20f, height - 20f, infoPaint)
         }
         
