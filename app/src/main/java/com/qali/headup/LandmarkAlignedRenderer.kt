@@ -413,8 +413,8 @@ class LandmarkAlignedRenderer {
             val modelVertex = Vertex3D(correspondence.modelVertex.first, correspondence.modelVertex.second, correspondence.modelVertex.third)
             val modelScreen = projectToScreen(modelVertex)
             val realScreen = PointF(
-                correspondence.realLandmark.x * scaleFactor + offsetX,
-                correspondence.realLandmark.y * scaleFactor + offsetY
+                correspondence.x * scaleFactor + offsetX,
+                correspondence.y * scaleFactor + offsetY
             )
             
             // Draw model landmark in green
