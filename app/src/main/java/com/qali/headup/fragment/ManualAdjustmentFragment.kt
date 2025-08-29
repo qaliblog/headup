@@ -588,11 +588,15 @@ class ManualAdjustmentFragment : Fragment() {
         
         // Create enhanced face data with detected landmarks and rotation info
         val enhancedFaceData = if (originalModel.hasFaceData && originalModel.faceData != null) {
-            originalModel.faceData!!.copy(
+            // Update existing face data with new landmarks and rotation statistics
+            Model3DFaceData(
                 landmarks = detectedLandmarks,
+                boundingBox = originalModel.faceData!!.boundingBox ?: calculateLandmarkBoundingBox(detectedLandmarks),
+                confidence = calculateLandmarkConfidence(detectedLandmarks),
                 rotationStatistics = rotationStatistics
             )
         } else {
+            // Create new face data
             Model3DFaceData(
                 landmarks = detectedLandmarks,
                 boundingBox = calculateLandmarkBoundingBox(detectedLandmarks),
@@ -603,8 +607,7 @@ class ManualAdjustmentFragment : Fragment() {
         
         // Return enhanced model
         return originalModel.copy(
-            faceData = enhancedFaceData,
-            hasFaceData = true
+            faceData = enhancedFaceData
         )
     }
     

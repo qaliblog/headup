@@ -15,6 +15,7 @@ package com.qali.headup
  * limitations under the License.
  */
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.LiveData
