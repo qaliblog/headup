@@ -18,7 +18,9 @@ package com.google.mediapipe.examples.facelandmarker
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.util.Log
 import android.view.View
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import kotlin.math.*
 
 /**
@@ -360,7 +362,7 @@ class Model3DPreviewView @JvmOverloads constructor(
         
         // Draw each landmark as a small circle
         for (landmark in landmarks) {
-            val vertex = Vertex3D(landmark.x, landmark.y, landmark.z)
+            val vertex = Vertex3D(landmark.x(), landmark.y(), landmark.z())
             val transformedPoint = transformVertex(vertex, scaleX, scaleY, offsetX, offsetY, rotation)
             canvas.drawCircle(transformedPoint.x, transformedPoint.y, 3f, landmarkPaint)
         }
