@@ -614,51 +614,5 @@ class Model3DPreviewView @JvmOverloads constructor(
         invalidate()
     }
     
-    /**
-     * Main drawing method - always renders the 3D model to the user
-     * The 2D capture happens separately and is never shown to the user
-     */
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        
-        // Always draw the 3D model - this is what the user sees
-        val model = currentModel
-        if (model != null) {
-            // Clear background
-            canvas.drawColor(Color.WHITE)
-            
-            // Always render the 3D wireframe model with current touch adjustments
-            renderBasicWireframe(canvas, model)
-            
-            // Draw model info
-            drawModelInfo(canvas, model)
-            
-            Log.d("Model3DPreviewView", "Rendering 3D model to user (NOT 2D image)")
-        } else {
-            // No model loaded
-            canvas.drawColor(Color.LIGHT_GRAY)
-            canvas.drawText("No model loaded", 50f, 50f, modelPaint)
-        }
-    }
-    
-    /**
-     * Draw model information overlay
-     */
-    private fun drawModelInfo(canvas: Canvas, model: Model3D) {
-        val adjustments = manualAdjustments
-        if (adjustments != null) {
-            val infoText = "Scale: ${String.format("%.2f", adjustments.scale)} | " +
-                          "Rot: X=${String.format("%.0f", adjustments.rotationX)}° " +
-                          "Y=${String.format("%.0f", adjustments.rotationY)}° " +
-                          "Z=${String.format("%.0f", adjustments.rotationZ)}°"
-            
-            // Draw info text in top-left corner
-            val textPaint = Paint().apply {
-                color = Color.BLACK
-                textSize = 24f
-                isAntiAlias = true
-            }
-            canvas.drawText(infoText, 20f, 40f, textPaint)
-        }
-    }
+
 }
