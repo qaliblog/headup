@@ -17,6 +17,7 @@ package com.qali.headup.fragment
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.RectF
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -247,50 +248,61 @@ class ManualAdjustmentFragment : Fragment() {
     }
     
     private fun captureAndDetectLandmarks() {
-        Log.d(TAG, "📸 Capturing model and detecting landmarks")
+        Log.d(TAG, "📸 Capturing model view and detecting landmarks for head placement")
         
         lifecycleScope.launch {
             try {
                 fragmentManualAdjustmentBinding.progressBar.visibility = View.VISIBLE
-                fragmentManualAdjustmentBinding.textLandmarkStatus.text = "Capturing model and detecting landmarks..."
+                fragmentManualAdjustmentBinding.textLandmarkStatus.text = "Capturing model view and detecting landmarks..."
                 
                 val currentModel = viewModel.get3DModel()
                 if (currentModel != null) {
-                    // Get current adjustments from the preview view
+                    // Get current rotation and scale statistics from touch controls
                     val currentAdjustments = fragmentManualAdjustmentBinding.modelPreviewView.getCurrentAdjustments()
                     
-                    // Create a bitmap of the adjusted model
-                    val adjustedBitmap = captureModelBitmap()
+                    Log.d(TAG, "Model rotation statistics: " +
+                        "rotX=${currentAdjustments.rotationX}, " +
+                        "rotY=${currentAdjustments.rotationY}, " +
+                        "rotZ=${currentAdjustments.rotationZ}, " +
+                        "scale=${currentAdjustments.scale}")
                     
-                    if (adjustedBitmap != null) {
-                        // Create Model3DFaceAnalyzer for landmark detection
-                        val faceAnalyzer = Model3DFaceAnalyzer(requireContext())
-                        
-                        // Detect landmarks in the captured image
+                    // Create a 2D bitmap of the current model view (as adjusted by user)
+                    val model2DBitmap = captureModelBitmap()
+                    
+                    if (model2DBitmap != null) {
+                        // Detect landmarks in the 2D model view
                         val detectedLandmarks = withContext(Dispatchers.IO) {
-                            faceAnalyzer.detectLandmarksInBitmap(adjustedBitmap)
+                            val faceAnalyzer = Model3DFaceAnalyzer(requireContext())
+                            faceAnalyzer.detectLandmarksInBitmap(model2DBitmap)
                         }
                         
                         if (detectedLandmarks.isNotEmpty()) {
-                            // Match detected landmarks to model landmarks and auto-align
-                            autoAlignModelWithDetectedLandmarks(currentModel, detectedLandmarks, currentAdjustments)
+                            // Create enhanced model with rotation statistics and detected landmarks
+                            val enhancedModel = createModelWithRotationStatistics(
+                                currentModel, 
+                                currentAdjustments, 
+                                detectedLandmarks
+                            )
+                            
+                            // Update the model in ViewModel with rotation statistics
+                            viewModel.updateModelWithRotationStatistics(enhancedModel)
                             
                             fragmentManualAdjustmentBinding.textLandmarkStatus.text = 
-                                "✅ Landmarks detected and model auto-aligned: ${detectedLandmarks.size} landmarks"
+                                "✅ Model prepared for head placement: ${detectedLandmarks.size} landmarks detected"
                             
                             Toast.makeText(requireContext(), 
-                                "🎯 Model automatically aligned based on detected landmarks!", 
+                                "🎯 Model ready for accurate head placement with rotation data!", 
                                 Toast.LENGTH_LONG).show()
                         } else {
-                            fragmentManualAdjustmentBinding.textLandmarkStatus.text = "⚠️ No landmarks detected in captured image"
+                            fragmentManualAdjustmentBinding.textLandmarkStatus.text = "⚠️ No landmarks detected in model view"
                             Toast.makeText(requireContext(), 
-                                "⚠️ No landmarks detected. Try adjusting model position.", 
+                                "⚠️ No face detected in model view. Try rotating model to show face clearly.", 
                                 Toast.LENGTH_SHORT).show()
                         }
                     } else {
-                        fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ Failed to capture model image"
+                        fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ Failed to capture model view"
                         Toast.makeText(requireContext(), 
-                            "❌ Failed to capture model image", 
+                            "❌ Failed to capture model view", 
                             Toast.LENGTH_SHORT).show()
                     }
                 } else {
@@ -300,7 +312,7 @@ class ManualAdjustmentFragment : Fragment() {
                         Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error during capture and landmark detection", e)
+                Log.e(TAG, "Error during model capture and landmark detection", e)
                 fragmentManualAdjustmentBinding.textLandmarkStatus.text = "❌ Error: ${e.message}"
                 Toast.makeText(requireContext(), 
                     "❌ Error: ${e.message}", 
@@ -556,69 +568,68 @@ class ManualAdjustmentFragment : Fragment() {
         }
     }
     
-    private fun autoAlignModelWithDetectedLandmarks(
-        model: Model3D, 
-        detectedLandmarks: List<NormalizedLandmark>,
-        currentAdjustments: ManualAdjustmentData
-    ) {
-        try {
-            Log.d(TAG, "🎯 Auto-aligning model with ${detectedLandmarks.size} detected landmarks")
-            
-            // This is where the magic happens - we match detected landmarks to model landmarks
-            // and calculate the optimal alignment
-            
-            if (model.hasFaceData && model.faceData?.landmarks != null) {
-                val modelLandmarks = model.faceData!!.landmarks
-                
-                // Use landmark matching to calculate optimal alignment
-                val landmarkMatcher = FaceLandmarkMatcher()
-                val matchingResult = landmarkMatcher.findBestAlignment(
-                    modelLandmarks = modelLandmarks,
-                    realFaceLandmarks = detectedLandmarks
-                )
-                
-                if (matchingResult.confidence > 0.3f) {
-                    // Apply the calculated alignment
-                    val optimizedAdjustments = ManualAdjustmentData(
-                        scale = matchingResult.scale,
-                        scaleX = matchingResult.scaleX,
-                        scaleY = matchingResult.scaleY,
-                        offsetX = matchingResult.offsetX,
-                        offsetY = matchingResult.offsetY,
-                        offsetZ = matchingResult.offsetZ,
-                        rotationX = matchingResult.rotationX,
-                        rotationY = matchingResult.rotationY,
-                        rotationZ = matchingResult.rotationZ
-                    )
-                    
-                    // Update the preview view with optimized adjustments
-                    fragmentManualAdjustmentBinding.modelPreviewView.applyAdjustments(optimizedAdjustments)
-                    
-                    // Update the ViewModel
-                    viewModel.setManualAdjustments(
-                        optimizedAdjustments.scale, optimizedAdjustments.scaleX, optimizedAdjustments.scaleY,
-                        optimizedAdjustments.offsetX, optimizedAdjustments.offsetY, optimizedAdjustments.offsetZ,
-                        optimizedAdjustments.rotationX, optimizedAdjustments.rotationY, optimizedAdjustments.rotationZ
-                    )
-                    
-                    Log.d(TAG, "✅ Auto-alignment completed with confidence: ${matchingResult.confidence}")
-                } else {
-                    Log.w(TAG, "⚠️ Low confidence alignment: ${matchingResult.confidence}")
-                    Toast.makeText(requireContext(), 
-                        "⚠️ Low confidence alignment. Manual adjustment may be needed.", 
-                        Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                Log.w(TAG, "⚠️ Model has no landmark data for auto-alignment")
-                Toast.makeText(requireContext(), 
-                    "⚠️ Model has no landmark data. Cannot auto-align.", 
-                    Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during auto-alignment", e)
-            Toast.makeText(requireContext(), 
-                "❌ Error during auto-alignment: ${e.message}", 
-                Toast.LENGTH_SHORT).show()
+    private fun createModelWithRotationStatistics(
+        originalModel: Model3D,
+        adjustments: ManualAdjustmentData,
+        detectedLandmarks: List<NormalizedLandmark>
+    ): Model3D {
+        // Create model with embedded rotation statistics for camera placement
+        val rotationStatistics = mapOf(
+            "rotationX" to adjustments.rotationX,
+            "rotationY" to adjustments.rotationY, 
+            "rotationZ" to adjustments.rotationZ,
+            "scale" to adjustments.scale,
+            "viewAngle" to calculateViewAngle(adjustments),
+            "landmarkCount" to detectedLandmarks.size,
+            "captureTimestamp" to System.currentTimeMillis()
+        )
+        
+        Log.d(TAG, "Created model with rotation statistics: $rotationStatistics")
+        
+        // Create enhanced face data with detected landmarks and rotation info
+        val enhancedFaceData = if (originalModel.hasFaceData && originalModel.faceData != null) {
+            originalModel.faceData!!.copy(
+                landmarks = detectedLandmarks,
+                rotationStatistics = rotationStatistics
+            )
+        } else {
+            Model3DFaceData(
+                landmarks = detectedLandmarks,
+                boundingBox = calculateLandmarkBoundingBox(detectedLandmarks),
+                confidence = calculateLandmarkConfidence(detectedLandmarks),
+                rotationStatistics = rotationStatistics
+            )
         }
+        
+        // Return enhanced model
+        return originalModel.copy(
+            faceData = enhancedFaceData,
+            hasFaceData = true
+        )
+    }
+    
+    private fun calculateViewAngle(adjustments: ManualAdjustmentData): Float {
+        // Calculate overall viewing angle based on rotation components
+        return kotlin.math.sqrt(
+            adjustments.rotationX * adjustments.rotationX + 
+            adjustments.rotationY * adjustments.rotationY + 
+            adjustments.rotationZ * adjustments.rotationZ
+        )
+    }
+    
+    private fun calculateLandmarkBoundingBox(landmarks: List<NormalizedLandmark>): RectF {
+        if (landmarks.isEmpty()) return RectF(0f, 0f, 1f, 1f)
+        
+        val minX = landmarks.minOf { it.x() }
+        val maxX = landmarks.maxOf { it.x() }
+        val minY = landmarks.minOf { it.y() }
+        val maxY = landmarks.maxOf { it.y() }
+        
+        return RectF(minX, minY, maxX, maxY)
+    }
+    
+    private fun calculateLandmarkConfidence(landmarks: List<NormalizedLandmark>): Float {
+        // Simple confidence calculation based on landmark count and distribution
+        return kotlin.math.min(1f, landmarks.size / 468f) // MediaPipe has 468 landmarks max
     }
 }

@@ -259,6 +259,19 @@ class MainViewModel : ViewModel() {
         // Note: This doesn't modify the actual model geometry, just the adjustments applied during rendering
         setManualAdjustments(scale, scaleX, scaleY, offsetX, offsetY, offsetZ, rotationX, rotationY, rotationZ)
     }
+    
+    /**
+     * Update the current model with rotation statistics for proper head placement
+     */
+    fun updateModelWithRotationStatistics(enhancedModel: Model3D) {
+        Log.d("MainViewModel", "Updating model with rotation statistics for head placement")
+        
+        // Update the current model with enhanced face data and rotation statistics
+        _current3DModel.value = enhancedModel
+        
+        // The enhanced model will now be used by the camera overlay for proper head placement
+        // The rotation statistics will be used to correctly orient the model on the detected face
+    }
 }
 
 /**

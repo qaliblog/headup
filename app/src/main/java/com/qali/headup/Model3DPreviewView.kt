@@ -126,14 +126,9 @@ class Model3DPreviewView @JvmOverloads constructor(
             return
         }
         
-        // Apply manual adjustments and render model
-        if (renderModelWithAdjustments(canvas, model)) {
-            // Model rendered successfully
-            drawModelInfo(canvas, model)
-        } else {
-            // Fallback to basic wireframe rendering
-            renderBasicWireframe(canvas, model)
-        }
+        // Always use basic wireframe rendering for now to ensure touch controls work
+        renderBasicWireframe(canvas, model)
+        drawModelInfo(canvas, model)
     }
     
     /**
@@ -545,6 +540,9 @@ class Model3DPreviewView @JvmOverloads constructor(
             rotationY = touchRotationY,
             rotationZ = touchRotationZ
         )
+        
+        // Debug logging
+        Log.d("Model3DPreviewView", "Touch rotations: X=${touchRotationX}, Y=${touchRotationY}, Z=${touchRotationZ}")
         
         // Update internal adjustments
         manualAdjustments = adjustmentData
