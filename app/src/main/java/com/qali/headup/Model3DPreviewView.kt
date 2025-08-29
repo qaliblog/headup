@@ -43,7 +43,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     private val materializedRenderer = MaterializedModelRenderer()
     private val preciseRenderer = PreciseModelRenderer()
     private var useFilledFaces = true
-    private var useMaterialRendering = false // Temporarily disable to test wireframe
+    private var useMaterialRendering = true // Enable material rendering for proper colors
     
     // Paint objects
     private val modelPaint = Paint().apply {
@@ -347,19 +347,17 @@ class Model3DPreviewView @JvmOverloads constructor(
         facesWithDepth.sortBy { it.second }
         
         // Render all faces with proper 3D depth effects
-        for ((transformed3D, avgZ, screenPoints) in facesWithDepth) {
+        for ((faceIndex, faceData) in facesWithDepth.withIndex()) {
+            val (transformed3D, avgZ, screenPoints) = faceData
+            
             // Calculate lighting based on face normal
             val normal = calculateFaceNormal(transformed3D)
             val lightVector = Vertex3D(0f, 0f, 1f) // Light coming from viewer
             val lightIntensity = maxOf(0.2f, normal.z * 0.8f + 0.3f) // Simple lighting
             
-            // Create paint with lighting and depth
-            val baseBrightness = (lightIntensity * 255).toInt()
-            val faceColor = Color.rgb(
-                (baseBrightness * 0.7f).toInt(),
-                (baseBrightness * 0.8f).toInt(), 
-                baseBrightness
-            )
+            // Create proper material color with lighting
+            val baseColor = getFaceColorForWireframe(faceIndex)
+            val faceColor = applyLightingToColor(baseColor, lightIntensity)
             
             val facePaint = Paint().apply {
                 color = faceColor
@@ -462,6 +460,68 @@ class Model3DPreviewView @JvmOverloads constructor(
         )
     }
     
+    /**
+     * Get material color for a face in wireframe rendering (matches MaterializedModelRenderer)
+     */
+    private fun getFaceColorForWireframe(faceIndex: Int): Int {
+        // Use same enhanced color scheme as MaterializedModelRenderer for consistency
+        val colorSchemes = arrayOf(
+            // Skin-like tones for face models
+            Color.rgb(255, 220, 177), // Light skin
+            Color.rgb(241, 194, 125), // Medium skin  
+            Color.rgb(224, 172, 105), // Tan skin
+            Color.rgb(198, 134, 66),  // Dark skin
+            // Hair colors
+            Color.rgb(92, 51, 23),    // Brown hair
+            Color.rgb(165, 42, 42),   // Auburn hair
+            Color.rgb(255, 255, 0),   // Blonde hair
+            Color.rgb(0, 0, 0),       // Black hair
+            // Eye colors
+            Color.rgb(139, 69, 19),   // Brown eyes
+            Color.rgb(0, 100, 0),     // Green eyes
+            Color.rgb(0, 0, 139),     // Blue eyes
+            // Clothing/accessory colors
+            Color.rgb(255, 0, 0),     // Red
+            Color.rgb(0, 255, 0),     // Green
+            Color.rgb(0, 0, 255),     // Blue
+            Color.rgb(255, 165, 0),   // Orange
+            Color.rgb(128, 0, 128)    // Purple
+        )
+        
+        // Use modulo to cycle through color schemes
+        val baseColorIndex = faceIndex % colorSchemes.size
+        val baseColor = colorSchemes[baseColorIndex]
+        
+        // Add slight variation within each color family
+        val variation = (faceIndex / colorSchemes.size) * 0.1f
+        val factor = 1.0f + (variation - 0.05f) // ±5% variation
+        
+        val r = (Color.red(baseColor) * factor).toInt().coerceIn(0, 255)
+        val g = (Color.green(baseColor) * factor).toInt().coerceIn(0, 255)
+        val b = (Color.blue(baseColor) * factor).toInt().coerceIn(0, 255)
+        
+        return Color.rgb(r, g, b)
+    }
+    
+    /**
+     * Apply lighting to a base color (matches MaterializedModelRenderer)
+     */
+    private fun applyLightingToColor(baseColor: Int, lightIntensity: Float): Int {
+        val r = Color.red(baseColor)
+        val g = Color.green(baseColor)
+        val b = Color.blue(baseColor)
+        val a = Color.alpha(baseColor)
+        
+        val factor = (0.3f + 0.7f * lightIntensity).coerceIn(0f, 1f)
+        
+        return Color.argb(
+            a,
+            (r * factor).toInt().coerceIn(0, 255),
+            (g * factor).toInt().coerceIn(0, 255),
+            (b * factor).toInt().coerceIn(0, 255)
+        )
+    }
+
     /**
      * Calculate face normal vector for back-face culling
      */

@@ -331,12 +331,43 @@ class MaterializedModelRenderer {
      * Get base color for a face (can be enhanced with texture mapping)
      */
     private fun getFaceColor(faceIndex: Int): Int {
-        // Use a simple color scheme based on face index
-        val hue = (faceIndex * 137.5f) % 360f // Golden angle for color distribution
-        val saturation = 0.6f
-        val lightness = 0.7f
+        // Enhanced color scheme with more realistic material colors
+        val colorSchemes = arrayOf(
+            // Skin-like tones for face models
+            Color.rgb(255, 220, 177), // Light skin
+            Color.rgb(241, 194, 125), // Medium skin  
+            Color.rgb(224, 172, 105), // Tan skin
+            Color.rgb(198, 134, 66),  // Dark skin
+            // Hair colors
+            Color.rgb(92, 51, 23),    // Brown hair
+            Color.rgb(165, 42, 42),   // Auburn hair
+            Color.rgb(255, 255, 0),   // Blonde hair
+            Color.rgb(0, 0, 0),       // Black hair
+            // Eye colors
+            Color.rgb(139, 69, 19),   // Brown eyes
+            Color.rgb(0, 100, 0),     // Green eyes
+            Color.rgb(0, 0, 139),     // Blue eyes
+            // Clothing/accessory colors
+            Color.rgb(255, 0, 0),     // Red
+            Color.rgb(0, 255, 0),     // Green
+            Color.rgb(0, 0, 255),     // Blue
+            Color.rgb(255, 165, 0),   // Orange
+            Color.rgb(128, 0, 128)    // Purple
+        )
         
-        return Color.HSVToColor(floatArrayOf(hue, saturation, lightness))
+        // Use modulo to cycle through color schemes
+        val baseColorIndex = faceIndex % colorSchemes.size
+        val baseColor = colorSchemes[baseColorIndex]
+        
+        // Add slight variation within each color family
+        val variation = (faceIndex / colorSchemes.size) * 0.1f
+        val factor = 1.0f + (variation - 0.05f) // ±5% variation
+        
+        val r = (Color.red(baseColor) * factor).toInt().coerceIn(0, 255)
+        val g = (Color.green(baseColor) * factor).toInt().coerceIn(0, 255)
+        val b = (Color.blue(baseColor) * factor).toInt().coerceIn(0, 255)
+        
+        return Color.rgb(r, g, b)
     }
     
     /**
