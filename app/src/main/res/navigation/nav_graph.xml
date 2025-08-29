@@ -21,7 +21,7 @@
 
     <fragment
         android:id="@+id/permissions_fragment"
-        android:name="com.google.mediapipe.examples.facelandmarker.fragment.PermissionsFragment"
+        android:name="com.qali.headup.fragment.PermissionsFragment"
         android:label="PermissionsFragment">
 
         <action
@@ -34,7 +34,7 @@
 
     <fragment
         android:id="@+id/camera_fragment"
-        android:name="com.google.mediapipe.examples.facelandmarker.fragment.CameraFragment"
+        android:name="com.qali.headup.fragment.CameraFragment"
         android:label="CameraFragment">
 
         <action
@@ -50,12 +50,12 @@
 
     <fragment
         android:id="@+id/gallery_fragment"
-        android:name="com.google.mediapipe.examples.facelandmarker.fragment.GalleryFragment"
+        android:name="com.qali.headup.fragment.GalleryFragment"
         android:label="GalleryFragment" />
         
     <fragment
         android:id="@+id/model3d_fragment"
-        android:name="com.google.mediapipe.examples.facelandmarker.fragment.Model3DFragment"
+        android:name="com.qali.headup.fragment.Model3DFragment"
         android:label="Model3DFragment">
         
         <action
@@ -69,7 +69,7 @@
     
     <fragment
         android:id="@+id/model_library_fragment"
-        android:name="com.google.mediapipe.examples.facelandmarker.fragment.ModelLibraryFragment"
+        android:name="com.qali.headup.fragment.ModelLibraryFragment"
         android:label="ModelLibraryFragment">
         
         <action
@@ -87,7 +87,7 @@
     
     <fragment
         android:id="@+id/model_preview_fragment"
-        android:name="com.google.mediapipe.examples.facelandmarker.fragment.ModelPreviewFragment"
+        android:name="com.qali.headup.fragment.ModelPreviewFragment"
         android:label="ModelPreviewFragment">
         
         <action
@@ -105,7 +105,7 @@
 
     <fragment
         android:id="@+id/manual_adjustment_fragment"
-        android:name="com.google.mediapipe.examples.facelandmarker.fragment.ManualAdjustmentFragment"
+        android:name="com.qali.headup.fragment.ManualAdjustmentFragment"
         android:label="ManualAdjustmentFragment">
 
         <action
