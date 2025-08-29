@@ -129,24 +129,16 @@ class Model3DPreviewView @JvmOverloads constructor(
         
         Log.d("Model3DPreviewView", "Model rendering: vertices=${model.vertices.size}, faces=${model.faces.size}")
         
-        // Try materialized rendering first for proper materials, fallback to wireframe
-        var rendered = false
-        if (useMaterialRendering) {
-            rendered = tryMaterializedRendering(canvas, model)
-            Log.d("Model3DPreviewView", "MaterializedRenderer result: $rendered")
-        }
+        // FORCE simple fallback for now to ensure something shows
+        Log.d("Model3DPreviewView", "Using simple fallback to debug black screen")
+        renderSimpleFallback(canvas, model)
         
-        if (!rendered) {
-            // Fallback to basic 3D wireframe
-            Log.d("Model3DPreviewView", "Using wireframe fallback")
-            try {
-                renderBasicWireframe(canvas, model)
-                Log.d("Model3DPreviewView", "Wireframe rendering completed")
-            } catch (e: Exception) {
-                Log.e("Model3DPreviewView", "Wireframe rendering failed", e)
-                // Ultimate fallback - just draw a simple test
-                renderSimpleFallback(canvas, model)
-            }
+        // Also try wireframe as overlay
+        try {
+            renderBasicWireframe(canvas, model)
+            Log.d("Model3DPreviewView", "Wireframe overlay added")
+        } catch (e: Exception) {
+            Log.e("Model3DPreviewView", "Wireframe overlay failed", e)
         }
         drawModelInfo(canvas, model)
     }
@@ -265,17 +257,20 @@ class Model3DPreviewView @JvmOverloads constructor(
     private fun renderSimpleFallback(canvas: Canvas, model: Model3D) {
         Log.d("Model3DPreviewView", "Using simple fallback rendering")
         
+        // Clear background to white first
+        canvas.drawColor(Color.WHITE)
+        
         // Draw a simple representation to verify model data is there
         val bounds = calculateModelBounds(model)
         val centerX = width / 2f
         val centerY = height / 2f
-        val scale = minOf(width, height) * 0.2f
+        val scale = minOf(width, height) * 0.3f
         
-        // Draw model bounds as a rectangle
+        // Draw model bounds as a visible rectangle
         val rectPaint = Paint().apply {
             color = Color.RED
             style = Paint.Style.STROKE
-            strokeWidth = 3f
+            strokeWidth = 5f
         }
         
         canvas.drawRect(
@@ -286,12 +281,33 @@ class Model3DPreviewView @JvmOverloads constructor(
             rectPaint
         )
         
-        // Draw model info
+        // Draw a filled circle in center
+        val circlePaint = Paint().apply {
+            color = Color.BLUE
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(centerX, centerY, 20f, circlePaint)
+        
+        // Draw model info with better visibility
         val textPaint = Paint().apply {
-            color = Color.RED
-            textSize = 24f
+            color = Color.BLACK
+            textSize = 28f
+            isAntiAlias = true
         }
         canvas.drawText("Model: ${model.vertices.size}v, ${model.faces.size}f", 50f, 100f, textPaint)
+        canvas.drawText("Bounds: ${String.format("%.1f", bounds.second.x - bounds.first.x)}x${String.format("%.1f", bounds.second.y - bounds.first.y)}", 50f, 140f, textPaint)
+        
+        // Draw actual vertices as dots to verify model data
+        val vertexPaint = Paint().apply {
+            color = Color.GREEN
+            style = Paint.Style.FILL
+        }
+        
+        for ((index, vertex) in model.vertices.take(20).withIndex()) { // Show first 20 vertices
+            val x = centerX + vertex.x * scale * 0.1f
+            val y = centerY + vertex.y * scale * 0.1f
+            canvas.drawCircle(x, y, 3f, vertexPaint)
+        }
     }
 
     /**
@@ -346,6 +362,8 @@ class Model3DPreviewView @JvmOverloads constructor(
         // Sort faces by depth (far to near) for proper depth rendering
         facesWithDepth.sortBy { it.second }
         
+        Log.d("Model3DPreviewView", "Rendering ${facesWithDepth.size} faces in wireframe")
+        
         // Render all faces with proper 3D depth effects
         for ((faceIndex, faceData) in facesWithDepth.withIndex()) {
             val (transformed3D, avgZ, screenPoints) = faceData
@@ -355,9 +373,13 @@ class Model3DPreviewView @JvmOverloads constructor(
             val lightVector = Vertex3D(0f, 0f, 1f) // Light coming from viewer
             val lightIntensity = maxOf(0.2f, normal.z * 0.8f + 0.3f) // Simple lighting
             
-            // Create proper material color with lighting
+            // Create proper material color with lighting - use bright colors for visibility
             val baseColor = getFaceColorForWireframe(faceIndex)
             val faceColor = applyLightingToColor(baseColor, lightIntensity)
+            
+            if (faceIndex < 5) { // Debug first few faces
+                Log.d("Model3DPreviewView", "Face $faceIndex: baseColor=${Integer.toHexString(baseColor)}, litColor=${Integer.toHexString(faceColor)}, screenPoints=${screenPoints.size}")
+            }
             
             val facePaint = Paint().apply {
                 color = faceColor
@@ -368,7 +390,7 @@ class Model3DPreviewView @JvmOverloads constructor(
             val wirePaint = Paint().apply {
                 color = Color.BLACK
                 style = Paint.Style.STROKE
-                strokeWidth = 1f
+                strokeWidth = 2f
                 isAntiAlias = true
             }
             
