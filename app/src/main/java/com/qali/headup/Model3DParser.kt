@@ -50,16 +50,6 @@ data class Vertex3D(val x: Float, val y: Float, val z: Float) {
 data class Face3D(val v1: Int, val v2: Int, val v3: Int)
 
 /**
- * Data class for face analysis data on 3D models
- */
-data class Model3DFaceData(
-    val landmarks: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>? = null,
-    val boundingBox: android.graphics.RectF? = null,
-    val confidence: Float = 0f,
-    val rotationStatistics: Map<String, Any>? = null
-)
-
-/**
  * Data class representing a complete 3D model
  */
 data class Model3D(

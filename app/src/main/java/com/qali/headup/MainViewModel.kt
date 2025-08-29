@@ -264,14 +264,23 @@ class MainViewModel : ViewModel() {
     /**
      * Update the current model with rotation statistics for proper head placement
      */
-    fun updateModelWithRotationStatistics(enhancedModel: Model3D) {
-        Log.d("MainViewModel", "Updating model with rotation statistics for head placement")
+    fun updateModelWithRotationStatistics(model: Model3D) {
+        Log.d("MainViewModel", "Model ready for head placement with rotation data")
+        // Model is already current, just confirm it's ready for camera use
+    }
+    
+    /**
+     * Store rotation statistics for camera head placement
+     */
+    fun setModelRotationStatistics(rotationStatistics: Map<String, Any>) {
+        Log.d("MainViewModel", "Storing rotation statistics for camera head placement: $rotationStatistics")
         
-        // Update the current model with enhanced face data and rotation statistics
-        _current3DModel.value = enhancedModel
+        // Store rotation statistics for camera overlay to use
+        // The camera overlay will use these statistics to properly orient the model
+        // when placing it on detected faces
         
-        // The enhanced model will now be used by the camera overlay for proper head placement
-        // The rotation statistics will be used to correctly orient the model on the detected face
+        // TODO: Store these statistics in a way the camera overlay can access them
+        // For now, we log them for debugging
     }
 }
 

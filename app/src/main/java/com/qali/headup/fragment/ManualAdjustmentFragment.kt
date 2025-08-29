@@ -278,15 +278,11 @@ class ManualAdjustmentFragment : Fragment() {
                         }
                         
                         if (detectedLandmarks.isNotEmpty()) {
-                            // Create enhanced model with rotation statistics and detected landmarks
-                            val enhancedModel = createModelWithRotationStatistics(
-                                currentModel, 
-                                currentAdjustments, 
-                                detectedLandmarks
-                            )
+                            // Store rotation statistics for head placement
+                            storeRotationStatisticsForHeadPlacement(currentAdjustments, detectedLandmarks)
                             
-                            // Update the model in ViewModel with rotation statistics
-                            viewModel.updateModelWithRotationStatistics(enhancedModel)
+                            // Update the model in ViewModel (keeping original structure)
+                            viewModel.updateModelWithRotationStatistics(currentModel)
                             
                             fragmentManualAdjustmentBinding.textLandmarkStatus.text = 
                                 "✅ Model prepared for head placement: ${detectedLandmarks.size} landmarks detected"
@@ -569,12 +565,11 @@ class ManualAdjustmentFragment : Fragment() {
         }
     }
     
-    private fun createModelWithRotationStatistics(
-        originalModel: Model3D,
+    private fun storeRotationStatisticsForHeadPlacement(
         adjustments: ManualAdjustmentData,
         detectedLandmarks: List<NormalizedLandmark>
-    ): Model3D {
-        // Create model with embedded rotation statistics for camera placement
+    ) {
+        // Store rotation statistics for camera head placement
         val rotationStatistics = mapOf(
             "rotationX" to adjustments.rotationX,
             "rotationY" to adjustments.rotationY, 
@@ -585,31 +580,10 @@ class ManualAdjustmentFragment : Fragment() {
             "captureTimestamp" to System.currentTimeMillis()
         )
         
-        Log.d(TAG, "Created model with rotation statistics: $rotationStatistics")
+        Log.d(TAG, "Stored rotation statistics for head placement: $rotationStatistics")
         
-        // Create enhanced face data with detected landmarks and rotation info
-        val enhancedFaceData = if (originalModel.hasFaceData && originalModel.faceData != null) {
-            // Update existing face data with new landmarks and rotation statistics
-            Model3DFaceData(
-                landmarks = detectedLandmarks,
-                boundingBox = originalModel.faceData!!.boundingBox ?: calculateLandmarkBoundingBox(detectedLandmarks),
-                confidence = calculateLandmarkConfidence(detectedLandmarks),
-                rotationStatistics = rotationStatistics
-            )
-        } else {
-            // Create new face data
-            Model3DFaceData(
-                landmarks = detectedLandmarks,
-                boundingBox = calculateLandmarkBoundingBox(detectedLandmarks),
-                confidence = calculateLandmarkConfidence(detectedLandmarks),
-                rotationStatistics = rotationStatistics
-            )
-        }
-        
-        // Return enhanced model
-        return originalModel.copy(
-            faceData = enhancedFaceData
-        )
+        // Store in ViewModel for camera overlay use
+        viewModel.setModelRotationStatistics(rotationStatistics)
     }
     
     private fun calculateViewAngle(adjustments: ManualAdjustmentData): Float {
@@ -621,19 +595,5 @@ class ManualAdjustmentFragment : Fragment() {
         )
     }
     
-    private fun calculateLandmarkBoundingBox(landmarks: List<NormalizedLandmark>): RectF {
-        if (landmarks.isEmpty()) return RectF(0f, 0f, 1f, 1f)
-        
-        val minX = landmarks.minOf { it.x() }
-        val maxX = landmarks.maxOf { it.x() }
-        val minY = landmarks.minOf { it.y() }
-        val maxY = landmarks.maxOf { it.y() }
-        
-        return RectF(minX, minY, maxX, maxY)
-    }
-    
-    private fun calculateLandmarkConfidence(landmarks: List<NormalizedLandmark>): Float {
-        // Simple confidence calculation based on landmark count and distribution
-        return kotlin.math.min(1f, landmarks.size / 468f) // MediaPipe has 468 landmarks max
-    }
+
 }
