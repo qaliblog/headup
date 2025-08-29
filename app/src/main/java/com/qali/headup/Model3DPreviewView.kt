@@ -192,7 +192,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     }
     
     /**
-     * Render basic wireframe as fallback
+     * Render true 3D model without any 2D flattening
      */
     private fun renderBasicWireframe(canvas: Canvas, model: Model3D) {
         val adjustments = manualAdjustments
@@ -201,18 +201,14 @@ class Model3DPreviewView @JvmOverloads constructor(
         val modelBounds = calculateModelBounds(model)
         val modelWidth = modelBounds.second.x - modelBounds.first.x
         val modelHeight = modelBounds.second.y - modelBounds.first.y
-        val maxDimension = maxOf(modelWidth, modelHeight)
+        val modelDepth = modelBounds.second.z - modelBounds.first.z
+        val maxDimension = maxOf(modelWidth, modelHeight, modelDepth)
         
-        val baseScale = if (maxDimension > 0) minOf(width, height) * 0.3f / maxDimension else 100f
+        val baseScale = if (maxDimension > 0) minOf(width, height) * 0.4f / maxDimension else 100f
         
-        // Apply manual adjustments
-        val scale = baseScale * (adjustments?.scale ?: 1f)
-        val scaleX = scale * (adjustments?.scaleX ?: 1f)
-        val scaleY = scale * (adjustments?.scaleY ?: 1f)
-        val offsetX = (adjustments?.offsetX ?: 0f) * 100
-        val offsetY = (adjustments?.offsetY ?: 0f) * 100
+        // Create list of all faces with their 3D data for depth sorting
+        val facesWithDepth = mutableListOf<Triple<List<Vertex3D>, Float, List<PointF>>>()
         
-        // Draw faces with depth-based shading
         for (face in model.faces) {
             val vertices = listOf(
                 getVertex(model, face.v1),
@@ -220,44 +216,65 @@ class Model3DPreviewView @JvmOverloads constructor(
                 getVertex(model, face.v3)
             )
             
-            // Apply 3D transformations to vertices first to get proper depth
+            // Apply full 3D transformations including rotations
             val transformed3DVertices = vertices.map { vertex ->
-                apply3DTransformations(vertex, scaleX, scaleY, 
+                apply3DTransformations(
+                    vertex, 
+                    baseScale * (adjustments?.scale ?: 1f),
+                    baseScale * (adjustments?.scale ?: 1f),
+                    baseScale * (adjustments?.scale ?: 1f), // Apply scale to Z as well for true 3D
                     adjustments?.rotationX ?: 0f,
                     adjustments?.rotationY ?: 0f, 
-                    adjustments?.rotationZ ?: 0f)
+                    adjustments?.rotationZ ?: 0f
+                )
             }
             
-            // Calculate average Z depth after 3D transformations for proper depth sorting
+            // Calculate average Z depth for sorting (closer faces drawn last)
             val avgZ = transformed3DVertices.map { it.z }.average().toFloat()
             
-            // Apply perspective projection for 2D display
-            val transformedVertices = transformed3DVertices.map { vertex ->
-                applyPerspectiveProjection(vertex, offsetX, offsetY)
+            // Convert to screen coordinates with strong perspective
+            val screenVertices = transformed3DVertices.map { vertex ->
+                convertTo3DScreen(vertex, adjustments?.offsetX ?: 0f, adjustments?.offsetY ?: 0f)
             }
             
-            // Create depth-based paint for this face with stronger depth effect
-            val depthFactor = (avgZ + 150f) / 300f // Stronger depth range  
-            val clampedDepth = depthFactor.coerceIn(0.3f, 1.0f) // Keep minimum visibility
+            facesWithDepth.add(Triple(transformed3DVertices, avgZ, screenVertices))
+        }
+        
+        // Sort faces by depth (far to near) for proper depth rendering
+        facesWithDepth.sortBy { it.second }
+        
+        // Render all faces with proper 3D depth effects
+        for ((transformed3D, avgZ, screenPoints) in facesWithDepth) {
+            // Calculate lighting based on face normal
+            val normal = calculateFaceNormal(transformed3D)
+            val lightVector = Vertex3D(0f, 0f, 1f) // Light coming from viewer
+            val lightIntensity = maxOf(0.2f, normal.z * 0.8f + 0.3f) // Simple lighting
             
-            // Temporarily disable back-face culling to see all faces for debugging
-            // TODO: Re-enable once 3D effect is working properly
+            // Create paint with lighting and depth
+            val baseBrightness = (lightIntensity * 255).toInt()
+            val faceColor = Color.rgb(
+                (baseBrightness * 0.7f).toInt(),
+                (baseBrightness * 0.8f).toInt(), 
+                baseBrightness
+            )
             
-            if (useFilledFaces && transformedVertices.size >= 3) {
-                // Create depth-shaded fill paint
-                val depthFilledPaint = Paint(filledPaint).apply {
-                    alpha = (clampedDepth * 255).toInt()
-                }
-                // Draw filled triangle first (as base) with depth shading
-                drawTriangle(canvas, transformedVertices, depthFilledPaint)
-                // Draw wireframe on top for definition
-                drawTriangle(canvas, transformedVertices, modelPaint)
-            } else {
-                // Draw wireframe only with depth-based alpha
-                val depthWirePaint = Paint(modelPaint).apply {
-                    alpha = (clampedDepth * 255).toInt()
-                }
-                drawTriangle(canvas, transformedVertices, depthWirePaint)
+            val facePaint = Paint().apply {
+                color = faceColor
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            
+            val wirePaint = Paint().apply {
+                color = Color.BLACK
+                style = Paint.Style.STROKE
+                strokeWidth = 1f
+                isAntiAlias = true
+            }
+            
+            // Draw filled face with lighting
+            if (screenPoints.size >= 3) {
+                drawTriangle(canvas, screenPoints, facePaint)
+                drawTriangle(canvas, screenPoints, wirePaint) // Wireframe for definition
             }
         }
     }
@@ -269,14 +286,15 @@ class Model3DPreviewView @JvmOverloads constructor(
         vertex: Vertex3D,
         scaleX: Float,
         scaleY: Float,
+        scaleZ: Float, // Now includes Z scaling for true 3D
         rotationX: Float, // Pitch
         rotationY: Float, // Yaw  
         rotationZ: Float  // Roll
     ): Vertex3D {
-        // Start with scaled vertex
+        // Start with scaled vertex in all 3 dimensions
         var x = vertex.x * scaleX
         var y = vertex.y * scaleY  
-        var z = vertex.z
+        var z = vertex.z * scaleZ // Scale Z dimension too for true 3D
         
         // Apply 3D rotations in order: X (pitch) -> Y (yaw) -> Z (roll)
         
@@ -317,29 +335,27 @@ class Model3DPreviewView @JvmOverloads constructor(
     }
     
     /**
-     * Apply perspective projection to convert 3D point to 2D screen coordinates
+     * Convert 3D vertex to screen coordinates with dramatic perspective for true 3D effect
      */
-    private fun applyPerspectiveProjection(vertex3D: Vertex3D, offsetX: Float, offsetY: Float): PointF {
-        // Apply stronger perspective projection to create more dramatic 3D effect
-        val perspectiveDistance = 300f // Closer viewer for stronger perspective
-        val zOffset = 150f // Push model away from viewer to avoid division by zero
+    private fun convertTo3DScreen(vertex3D: Vertex3D, offsetX: Float, offsetY: Float): PointF {
+        // Strong perspective settings for dramatic 3D effect
+        val focalLength = 200f // Shorter focal length = more dramatic perspective
+        val viewerDistance = 300f // Distance from viewer to origin
         
-        // Perspective projection: scale by distance/z to create depth effect
-        val projectedZ = vertex3D.z + zOffset
-        val perspectiveFactor = if (projectedZ > 0.1f) perspectiveDistance / projectedZ else 1f
+        // Calculate depth with viewer distance
+        val depth = vertex3D.z + viewerDistance
         
-        val projectedX = vertex3D.x * perspectiveFactor
-        val projectedY = vertex3D.y * perspectiveFactor
+        // Perspective projection with strong effect
+        val perspectiveFactor = if (depth > 10f) focalLength / depth else 0.1f
         
-        // Add some debug logging to see if perspective is working
-        if (vertex3D.z != 0f) {
-            Log.v("Model3DPreviewView", "Vertex Z=${vertex3D.z}, projectedZ=$projectedZ, factor=$perspectiveFactor")
-        }
+        // Project to screen with perspective
+        val screenX = vertex3D.x * perspectiveFactor
+        val screenY = vertex3D.y * perspectiveFactor
         
-        // Translate to screen coordinates with perspective
+        // Convert to canvas coordinates
         return PointF(
-            centerX + projectedX + offsetX,
-            centerY + projectedY + offsetY
+            centerX + screenX + offsetX * 50f,
+            centerY - screenY + offsetY * 50f // Flip Y for correct orientation
         )
     }
     
@@ -515,7 +531,10 @@ class Model3DPreviewView @JvmOverloads constructor(
             canvas.drawText(info, 20f, height - 40f, infoPaint)
             
             // Add debug info about 3D rendering
-            val debugInfo = "3D Rendering: ${if (model.vertices.any { it.z != 0f }) "Active" else "Flat Model"}"
+            val hasDepth = model.vertices.any { it.z != 0f }
+            val minZ = model.vertices.minOfOrNull { it.z } ?: 0f
+            val maxZ = model.vertices.maxOfOrNull { it.z } ?: 0f
+            val debugInfo = "3D: ${if (hasDepth) "TRUE 3D" else "FLAT"} Z-range: ${String.format("%.1f", minZ)} to ${String.format("%.1f", maxZ)}"
             canvas.drawText(debugInfo, 20f, height - 20f, infoPaint)
         }
         
