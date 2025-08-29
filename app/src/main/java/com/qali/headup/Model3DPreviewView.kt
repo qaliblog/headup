@@ -438,13 +438,7 @@ class Model3DPreviewView @JvmOverloads constructor(
         invalidate()
     }
     
-    /**
-     * Apply manual adjustments to the preview
-     */
-    fun applyAdjustments(adjustments: ManualAdjustmentData) {
-        manualAdjustments = adjustments
-        invalidate()
-    }
+
     
     /**
      * Toggle between wireframe and filled rendering

@@ -33,6 +33,8 @@ import com.qali.headup.ModelStorageManager
 import com.qali.headup.Model3DFaceAnalyzer
 import com.qali.headup.Model3D
 import com.qali.headup.databinding.FragmentManualAdjustmentBinding
+import com.qali.headup.FaceLandmarkMatcher
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -133,82 +135,13 @@ class ManualAdjustmentFragment : Fragment() {
         }
     }
     
-    private fun createSeekBarListener(onProgressChanged: (Int) -> Unit) = 
-        object : android.widget.SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    onProgressChanged(progress)
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
-        }
-    
-    private fun initializeValues() {
-        // Set default positions for all seek bars
-        fragmentManualAdjustmentBinding.seekBarScale.progress = 50 // 1.0 scale
-        fragmentManualAdjustmentBinding.seekBarScaleX.progress = 33 // 1.0 scale
-        fragmentManualAdjustmentBinding.seekBarScaleY.progress = 33 // 1.0 scale
-        
-        fragmentManualAdjustmentBinding.seekBarOffsetX.progress = 50 // 0.0 offset
-        fragmentManualAdjustmentBinding.seekBarOffsetY.progress = 50 // 0.0 offset
-        fragmentManualAdjustmentBinding.seekBarOffsetZ.progress = 50 // 0.0 offset
-        
-        fragmentManualAdjustmentBinding.seekBarRotationX.progress = 180 // 0° rotation
-        fragmentManualAdjustmentBinding.seekBarRotationY.progress = 180 // 0° rotation
-        fragmentManualAdjustmentBinding.seekBarRotationZ.progress = 180 // 0° rotation
-        
-        fragmentManualAdjustmentBinding.seekBarLandmarkConfidence.progress = 50 // 0.5 confidence
-        
-        // Update displays
-        updateAllDisplays()
-    }
-    
-    private fun updateAllDisplays() {
-        fragmentManualAdjustmentBinding.textScaleValue.text = String.format("%.2f", manualScale)
-        fragmentManualAdjustmentBinding.textScaleXValue.text = String.format("%.2f", manualScaleX)
-        fragmentManualAdjustmentBinding.textScaleYValue.text = String.format("%.2f", manualScaleY)
-        
-        fragmentManualAdjustmentBinding.textOffsetXValue.text = String.format("%.3f", manualOffsetX)
-        fragmentManualAdjustmentBinding.textOffsetYValue.text = String.format("%.3f", manualOffsetY)
-        fragmentManualAdjustmentBinding.textOffsetZValue.text = String.format("%.3f", manualOffsetZ)
-        
-        fragmentManualAdjustmentBinding.textRotationXValue.text = String.format("%.1f°", manualRotationX)
-        fragmentManualAdjustmentBinding.textRotationYValue.text = String.format("%.1f°", manualRotationY)
-        fragmentManualAdjustmentBinding.textRotationZValue.text = String.format("%.1f°", manualRotationZ)
-        
-        fragmentManualAdjustmentBinding.textLandmarkConfidenceValue.text = String.format("%.2f", landmarkConfidenceThreshold)
-    }
-    
-    private fun updateUIWithLoadedValues() {
-        // Update seek bar positions to match loaded values
-        fragmentManualAdjustmentBinding.seekBarScale.progress = (manualScale / 2f * 100).toInt() // 0.0 to 2.0 range
-        fragmentManualAdjustmentBinding.seekBarScaleX.progress = (manualScaleX / 3f * 100).toInt() // 0.0 to 3.0 range
-        fragmentManualAdjustmentBinding.seekBarScaleY.progress = (manualScaleY / 3f * 100).toInt() // 0.0 to 3.0 range
-        
-        fragmentManualAdjustmentBinding.seekBarOffsetX.progress = ((manualOffsetX + 0.5f) * 100).toInt() // -0.5 to 0.5 range
-        fragmentManualAdjustmentBinding.seekBarOffsetY.progress = ((manualOffsetY + 0.5f) * 100).toInt() // -0.5 to 0.5 range
-        fragmentManualAdjustmentBinding.seekBarOffsetZ.progress = ((manualOffsetZ + 0.5f) * 100).toInt() // -0.5 to 0.5 range
-        
-        fragmentManualAdjustmentBinding.seekBarRotationX.progress = ((manualRotationX + 360f) / 2f).toInt() // -360° to 360° range
-        fragmentManualAdjustmentBinding.seekBarRotationY.progress = ((manualRotationY + 360f) / 2f).toInt() // -360° to 360° range
-        fragmentManualAdjustmentBinding.seekBarRotationZ.progress = ((manualRotationZ + 360f) / 2f).toInt() // -360° to 360° range
-        
-        fragmentManualAdjustmentBinding.seekBarLandmarkConfidence.progress = (landmarkConfidenceThreshold * 100).toInt() // 0.0 to 1.0 range
-        
-        // Update switch state
-        fragmentManualAdjustmentBinding.switchLandmarkDetection.isChecked = landmarkDetectionEnabled
-        
-        // Update displays
-        updateAllDisplays()
-    }
+
     
     private fun observeViewModel() {
         // Observe 3D model changes
         viewModel.current3DModel.observe(viewLifecycleOwner) { model ->
             val hasModel = model != null
-            fragmentManualAdjustmentBinding.buttonApplyToModel.isEnabled = hasModel
-            fragmentManualAdjustmentBinding.buttonDetectLandmarks.isEnabled = hasModel
+            fragmentManualAdjustmentBinding.buttonCaptureAndDetect.isEnabled = hasModel
             
             // Update preview view
             fragmentManualAdjustmentBinding.modelPreviewView.setModel(model)
@@ -554,7 +487,7 @@ class ManualAdjustmentFragment : Fragment() {
                     val faceAnalyzer = Model3DFaceAnalyzer(requireContext())
                     
                     // Create a bitmap of the adjusted model
-                    val adjustedBitmap = createAdjustedModelBitmap()
+                    val adjustedBitmap = captureModelBitmap()
                     
                     if (adjustedBitmap != null) {
                         // Run face detection on the adjusted model
