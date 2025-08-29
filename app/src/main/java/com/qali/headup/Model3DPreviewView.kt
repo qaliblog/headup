@@ -265,15 +265,26 @@ class Model3DPreviewView @JvmOverloads constructor(
         val rotY = adjustments?.rotationY ?: 0f
         val rotZ = adjustments?.rotationZ ?: 0f
         
-        // Draw each face as a simple wireframe
-        val facePaint = Paint().apply {
-            color = Color.BLUE
-            style = Paint.Style.STROKE
-            strokeWidth = 2f
-            isAntiAlias = true
-        }
-        
-        for (face in model.faces) {
+        // Draw each face with actual materials
+        for ((faceIndex, face) in model.faces.withIndex()) {
+            // Get actual material color from model
+            val material = model.materials.getOrNull(face.materialIndex) ?: model.materials.firstOrNull() ?: Material3D("default")
+            val materialColor = material.diffuseColor
+            
+            // Create paint for this face with actual material color
+            val facePaint = Paint().apply {
+                color = materialColor
+                style = Paint.Style.FILL
+                isAntiAlias = true
+                alpha = 200 // Slightly transparent to see overlapping faces
+            }
+            
+            val wirePaint = Paint().apply {
+                color = Color.BLACK
+                style = Paint.Style.STROKE
+                strokeWidth = 1f
+                isAntiAlias = true
+            }
             val v1 = getVertex(model, face.v1)
             val v2 = getVertex(model, face.v2) 
             val v3 = getVertex(model, face.v3)
@@ -283,14 +294,15 @@ class Model3DPreviewView @JvmOverloads constructor(
             val p2 = transformSimple(v2, finalScale, rotX, rotY, rotZ)
             val p3 = transformSimple(v3, finalScale, rotX, rotY, rotZ)
             
-            // Draw triangle
+            // Draw triangle with material color
             val path = Path().apply {
                 moveTo(p1.x, p1.y)
                 lineTo(p2.x, p2.y)
                 lineTo(p3.x, p3.y)
                 close()
             }
-            canvas.drawPath(path, facePaint)
+            canvas.drawPath(path, facePaint) // Fill with material color
+            canvas.drawPath(path, wirePaint) // Black wireframe outline
         }
         
         Log.d("Model3DPreviewView", "Simple model rendered: ${model.faces.size} faces")
