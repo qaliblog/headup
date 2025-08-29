@@ -146,7 +146,7 @@ class Model3DPreviewView @JvmOverloads constructor(
         return try {
             // Set up the materialized renderer with current model and adjustments
             materializedRenderer.setModel(model)
-            materializedRenderer.setManualAdjustments(manualAdjustments)
+            materializedRenderer.setManualAdjustments(manualAdjustments ?: ManualAdjustmentData())
             materializedRenderer.updateScreenParameters(
                 width, height, 
                 calculateBaseScale(model),
