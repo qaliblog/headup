@@ -223,6 +223,29 @@ class ManualAdjustmentFragment : Fragment() {
         fragmentManualAdjustmentBinding.textLandmarkConfidenceValue.text = String.format("%.2f", landmarkConfidenceThreshold)
     }
     
+    private fun updateUIWithLoadedValues() {
+        // Update seek bar positions to match loaded values
+        fragmentManualAdjustmentBinding.seekBarScale.progress = (manualScale / 2f * 100).toInt() // 0.0 to 2.0 range
+        fragmentManualAdjustmentBinding.seekBarScaleX.progress = (manualScaleX / 3f * 100).toInt() // 0.0 to 3.0 range
+        fragmentManualAdjustmentBinding.seekBarScaleY.progress = (manualScaleY / 3f * 100).toInt() // 0.0 to 3.0 range
+        
+        fragmentManualAdjustmentBinding.seekBarOffsetX.progress = ((manualOffsetX + 0.5f) * 100).toInt() // -0.5 to 0.5 range
+        fragmentManualAdjustmentBinding.seekBarOffsetY.progress = ((manualOffsetY + 0.5f) * 100).toInt() // -0.5 to 0.5 range
+        fragmentManualAdjustmentBinding.seekBarOffsetZ.progress = ((manualOffsetZ + 0.5f) * 100).toInt() // -0.5 to 0.5 range
+        
+        fragmentManualAdjustmentBinding.seekBarRotationX.progress = ((manualRotationX + 360f) / 2f).toInt() // -360° to 360° range
+        fragmentManualAdjustmentBinding.seekBarRotationY.progress = ((manualRotationY + 360f) / 2f).toInt() // -360° to 360° range
+        fragmentManualAdjustmentBinding.seekBarRotationZ.progress = ((manualRotationZ + 360f) / 2f).toInt() // -360° to 360° range
+        
+        fragmentManualAdjustmentBinding.seekBarLandmarkConfidence.progress = (landmarkConfidenceThreshold * 100).toInt() // 0.0 to 1.0 range
+        
+        // Update switch state
+        fragmentManualAdjustmentBinding.switchLandmarkDetection.isChecked = landmarkDetectionEnabled
+        
+        // Update displays
+        updateAllDisplays()
+    }
+    
     private fun observeViewModel() {
         // Observe 3D model changes
         viewModel.current3DModel.observe(viewLifecycleOwner) { model ->
@@ -458,7 +481,7 @@ class ManualAdjustmentFragment : Fragment() {
                     landmarkConfidenceThreshold = savedAdjustments.confidenceThreshold
                     
                     // Update UI controls to reflect loaded values
-                    initializeValues()
+                    updateUIWithLoadedValues()
                     
                     // Apply the loaded adjustments
                     applyManualAdjustments()

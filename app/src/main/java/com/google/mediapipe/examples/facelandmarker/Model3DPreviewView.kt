@@ -117,22 +117,27 @@ class Model3DPreviewView @JvmOverloads constructor(
      * Render the model with applied manual adjustments
      */
     private fun renderModelWithAdjustments(canvas: Canvas, model: Model3D): Boolean {
-        val adjustments = manualAdjustments ?: return false
+        val adjustments = manualAdjustments
         
         try {
             if (useFilledFaces && materializedRenderer.hasValidModel()) {
                 // Apply manual adjustments to materialized renderer
-                applyAdjustmentsToRenderer(materializedRenderer, adjustments)
+                if (adjustments != null) {
+                    applyAdjustmentsToRenderer(materializedRenderer, adjustments)
+                }
                 return materializedRenderer.render(canvas, filledPaint)
             } else if (preciseRenderer.hasValidModel()) {
                 // Apply manual adjustments to precise renderer
-                applyAdjustmentsToRenderer(preciseRenderer, adjustments)
+                if (adjustments != null) {
+                    applyAdjustmentsToRenderer(preciseRenderer, adjustments)
+                }
                 return preciseRenderer.render(canvas, modelPaint)
             }
         } catch (e: Exception) {
-            // Fall back to basic rendering
+            Log.w("Model3DPreviewView", "Advanced renderer failed, falling back to basic rendering", e)
         }
         
+        // Always fall back to basic rendering if advanced renderers fail or adjustments are present
         return false
     }
     
@@ -140,18 +145,16 @@ class Model3DPreviewView @JvmOverloads constructor(
      * Apply manual adjustments to a renderer
      */
     private fun applyAdjustmentsToRenderer(renderer: Any, adjustments: ManualAdjustmentData) {
-        // Create a transform matrix from manual adjustments
-        val transform = createTransformFromAdjustments(adjustments)
-        
         // Apply transform to renderer (implementation depends on renderer type)
         when (renderer) {
             is MaterializedModelRenderer -> {
-                // Apply transform to materialized renderer
-                // This would require extending the renderer to accept manual transforms
+                // Apply manual adjustments to materialized renderer
+                renderer.setManualAdjustments(adjustments)
             }
             is PreciseModelRenderer -> {
-                // Apply transform to precise renderer
-                // This would require extending the renderer to accept manual transforms
+                // For precise renderer, we'll use the basic fallback since it's more reliable
+                // The precise renderer doesn't support manual adjustments yet
+                Log.d("Model3DPreviewView", "Using basic rendering with manual adjustments")
             }
         }
     }
@@ -303,7 +306,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     }
     
     /**
-     * Draw model information overlay
+     * Draw model information overlay and landmarks if available
      */
     private fun drawModelInfo(canvas: Canvas, model: Model3D) {
         val adjustments = manualAdjustments
@@ -318,6 +321,48 @@ class Model3DPreviewView @JvmOverloads constructor(
             }
             
             canvas.drawText(info, 20f, height - 20f, infoPaint)
+        }
+        
+        // Draw landmarks if face data is available
+        if (model.hasFaceData && model.faceData?.landmarks != null) {
+            drawLandmarkPreview(canvas, model)
+        }
+    }
+    
+    /**
+     * Draw landmark preview on the model
+     */
+    private fun drawLandmarkPreview(canvas: Canvas, model: Model3D) {
+        val landmarks = model.faceData?.landmarks ?: return
+        val adjustments = manualAdjustments
+        
+        // Calculate base scale to fit model in view
+        val modelBounds = calculateModelBounds(model)
+        val modelWidth = modelBounds.second.x - modelBounds.first.x
+        val modelHeight = modelBounds.second.y - modelBounds.first.y
+        val maxDimension = maxOf(modelWidth, modelHeight)
+        
+        val baseScale = if (maxDimension > 0) minOf(width, height) * 0.3f / maxDimension else 100f
+        
+        // Apply manual adjustments
+        val scale = baseScale * (adjustments?.scale ?: 1f)
+        val scaleX = scale * (adjustments?.scaleX ?: 1f)
+        val scaleY = scale * (adjustments?.scaleY ?: 1f)
+        val offsetX = (adjustments?.offsetX ?: 0f) * 100
+        val offsetY = (adjustments?.offsetY ?: 0f) * 100
+        val rotation = adjustments?.rotationZ ?: 0f
+        
+        val landmarkPaint = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        
+        // Draw each landmark as a small circle
+        for (landmark in landmarks) {
+            val vertex = Vertex3D(landmark.x, landmark.y, landmark.z)
+            val transformedPoint = transformVertex(vertex, scaleX, scaleY, offsetX, offsetY, rotation)
+            canvas.drawCircle(transformedPoint.x, transformedPoint.y, 3f, landmarkPaint)
         }
     }
     

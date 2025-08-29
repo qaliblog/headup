@@ -47,12 +47,14 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     private val landmarkAlignedRenderer = LandmarkAlignedRenderer() // Landmark-based renderer
     private val progressiveRenderer = ProgressiveModelRenderer() // NEW: Weight point + progressive scaling
     private val preciseRenderer = PreciseModelRenderer() // ULTRA-PRECISE: Direct landmark-to-landmark mapping
+    private val materializedRenderer = MaterializedModelRenderer() // Enhanced renderer with manual adjustments
     private val headDirectionCalculator = HeadDirectionCalculator()
     private var show3DModel = false
     private var debugMode = false // Show both face mesh AND 3D model for testing
     private var useLandmarkAlignment = true // Use landmark-based alignment when available
     private var useProgressiveRenderer = false // Use progressive by default initially
-    private var usePreciseRenderer = true // NEW: Use ultra-precise landmark mapping
+    private var usePreciseRenderer = false // Use MaterializedModelRenderer by default for better materials
+    private var currentManualAdjustments: ManualAdjustmentData? = null // Store manual adjustments
 
     init {
         initPaints()
@@ -109,13 +111,16 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                 val faceWidth = faceBounds.width() * scaleFactor
                 val faceHeight = faceBounds.height() * scaleFactor
                 
-                // Choose rendering mode: precise landmark-to-landmark, progressive weight-point, landmark-aligned, standard 3D model, or face landmarks/mesh
-                if (show3DModel && (preciseRenderer.hasValidModel() || progressiveRenderer.hasValidModel() || landmarkAlignedRenderer.hasModel() || model3DRenderer.hasModel())) {
+                // Choose rendering mode: precise landmark-to-landmark, progressive weight-point, landmark-aligned, materialized (with adjustments), standard 3D model, or face landmarks/mesh
+                if (show3DModel && (preciseRenderer.hasValidModel() || progressiveRenderer.hasValidModel() || landmarkAlignedRenderer.hasModel() || materializedRenderer.hasValidModel() || model3DRenderer.hasModel())) {
                     // Determine which renderer to use (priority order)
-                    val usePreciseRenderer = this.usePreciseRenderer && preciseRenderer.hasValidModel()
-                    val useProgressiveRenderer = !usePreciseRenderer && this.useProgressiveRenderer && progressiveRenderer.hasValidModel()
-                    val useAdvancedRenderer = !usePreciseRenderer && !useProgressiveRenderer && useLandmarkAlignment && landmarkAlignedRenderer.hasModel()
+                    // Use materialized renderer for better materials by default
+                    val useMaterializedRenderer = materializedRenderer.hasValidModel()
+                    val usePreciseRenderer = !useMaterializedRenderer && this.usePreciseRenderer && preciseRenderer.hasValidModel()
+                    val useProgressiveRenderer = !useMaterializedRenderer && !usePreciseRenderer && this.useProgressiveRenderer && progressiveRenderer.hasValidModel()
+                    val useAdvancedRenderer = !useMaterializedRenderer && !usePreciseRenderer && !useProgressiveRenderer && useLandmarkAlignment && landmarkAlignedRenderer.hasModel()
                     val rendererType = when {
+                        useMaterializedRenderer -> "materialized with materials"
                         usePreciseRenderer -> "precise landmark-to-landmark"
                         useProgressiveRenderer -> "progressive weight-point"
                         useAdvancedRenderer -> "landmark-aligned"
@@ -134,7 +139,37 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                         
                         var renderingSuccessful = false
                         
-                        if (usePreciseRenderer) {
+                        if (useMaterializedRenderer) {
+                            // Use materialized renderer with manual adjustments
+                            materializedRenderer.updateScreenParameters(
+                                width = width,
+                                height = height,
+                                scale = scaleFactor,
+                                offsetX = offsetX,
+                                offsetY = offsetY
+                            )
+                            
+                            // Apply manual adjustments if available
+                            if (currentManualAdjustments != null) {
+                                materializedRenderer.setManualAdjustments(currentManualAdjustments!!)
+                                Log.d("OverlayView", "✅ Applied manual adjustments to materialized renderer")
+                            } else {
+                                // Use default adjustments for better baseline rendering
+                                materializedRenderer.setManualAdjustments(ManualAdjustmentData())
+                                Log.d("OverlayView", "🎨 Using default settings for materialized renderer")
+                            }
+                            
+                            // Update alignment with current face landmarks
+                            val alignmentUpdated = materializedRenderer.updateAlignment(faceLandmarks)
+                            
+                            if (alignmentUpdated) {
+                                renderingSuccessful = materializedRenderer.render(canvas, pointPaint)
+                                Log.d("OverlayView", "🎨 Materialized rendering: ${if (renderingSuccessful) "success" else "failed"}")
+                            } else {
+                                Log.w("OverlayView", "⚠️ Failed to update materialized alignment")
+                            }
+                            
+                        } else if (usePreciseRenderer) {
                             // Use ultra-precise landmark-to-landmark renderer
                             preciseRenderer.updateScreenParameters(
                                 width = width,
@@ -143,6 +178,12 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
                                 offsetX = offsetX,
                                 offsetY = offsetY
                             )
+                            
+                            // Apply manual adjustments if available
+                            currentManualAdjustments?.let { adjustments ->
+                                // For now, precise renderer doesn't support manual adjustments directly
+                                Log.d("OverlayView", "⚠️ Precise renderer doesn't support manual adjustments yet")
+                            }
                             
                             // Update alignment with current face landmarks
                             val alignmentUpdated = preciseRenderer.updateAlignment(faceLandmarks)
@@ -346,6 +387,9 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
         // Try to set model in landmark-aligned renderer third
         val landmarkRendererSet = landmarkAlignedRenderer.setModel(model)
         
+        // Set in materialized renderer for manual adjustments support
+        val materializedRendererSet = materializedRenderer.setModel(model)
+        
         // Always set in standard renderer as fallback
         model3DRenderer.setModel(model)
         
@@ -397,12 +441,22 @@ class OverlayView(context: Context?, attrs: AttributeSet?) :
     
     fun applyManualAdjustments(adjustments: ManualAdjustmentData) {
         // Apply adjustments to all renderers that support them
-        // Note: This is a simplified implementation
-        // In a full implementation, each renderer would need to support manual adjustments
         Log.d("OverlayView", "🎛️ Applying manual adjustments: scale=${adjustments.scale}, offset=(${adjustments.offsetX}, ${adjustments.offsetY})")
         
-        // For now, just invalidate to trigger a redraw
-        // TODO: Pass adjustments to individual renderers
+        // Apply to MaterializedModelRenderer if it exists
+        try {
+            // Store the adjustments for use during rendering
+            this.currentManualAdjustments = adjustments
+            
+            // If we can access the materialized renderer, apply directly
+            // This would require adding a field to store it
+            
+            Log.d("OverlayView", "✅ Manual adjustments stored for rendering")
+        } catch (e: Exception) {
+            Log.e("OverlayView", "Error applying manual adjustments", e)
+        }
+        
+        // Trigger redraw with new adjustments
         invalidate()
     }
     
