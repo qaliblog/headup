@@ -273,8 +273,11 @@ class MaterializedModelRenderer {
                     close()
                 }
                 
-                // Render face with material color based on lighting
-                val baseColor = getFaceColor(index)
+                // Get actual material color from model
+                val faceIndex = model.faces.indexOf(face)
+                val materialIndex = if (faceIndex >= 0) face.materialIndex else 0
+                val material = model.materials.getOrNull(materialIndex) ?: model.materials.firstOrNull() ?: Material3D("default")
+                val baseColor = material.diffuseColor
                 val litColor = applyLighting(baseColor, lightIntensity)
                 
                 materialPaint.color = litColor

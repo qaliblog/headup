@@ -45,9 +45,27 @@ data class Vertex3D(val x: Float, val y: Float, val z: Float) {
 }
 
 /**
- * Data class representing a 3D face/triangle
+ * Data class representing a material
  */
-data class Face3D(val v1: Int, val v2: Int, val v3: Int)
+data class Material3D(
+    val name: String,
+    val diffuseColor: Int = Color.WHITE,
+    val specularColor: Int = Color.WHITE,
+    val ambientColor: Int = Color.GRAY,
+    val shininess: Float = 32f,
+    val alpha: Float = 1f,
+    val texturePath: String? = null
+)
+
+/**
+ * Data class representing a 3D face/triangle with material
+ */
+data class Face3D(
+    val v1: Int, 
+    val v2: Int, 
+    val v3: Int,
+    val materialIndex: Int = 0 // Index into materials array
+)
 
 /**
  * Data class representing a complete 3D model
@@ -57,6 +75,7 @@ data class Model3D(
     val faces: List<Face3D>,
     val centroid: Vertex3D,
     val boundingBox: Pair<Vertex3D, Vertex3D>, // min, max
+    val materials: List<Material3D> = listOf(Material3D("default")), // Material definitions
     val faceData: Model3DFaceData? = null // Face analysis data if available
 ) {
     fun getScaleFactor(targetSize: Float = 1.0f): Float {
@@ -150,6 +169,9 @@ class Model3DParser(private val context: android.content.Context) {
         return try {
             val vertices = mutableListOf<Vertex3D>()
             val faces = mutableListOf<Face3D>()
+            val materials = mutableListOf<Material3D>()
+            var currentMaterialIndex = 0
+            var mtlFile: String? = null
             
             content.lines().forEach { line ->
                 val trimmedLine = line.trim()
@@ -158,9 +180,28 @@ class Model3DParser(private val context: android.content.Context) {
                         parseVertex(trimmedLine)?.let { vertices.add(it) }
                     }
                     trimmedLine.startsWith("f ") -> {
-                        parseFace(trimmedLine)?.let { faces.add(it) }
+                        parseFace(trimmedLine, currentMaterialIndex)?.let { faces.add(it) }
+                    }
+                    trimmedLine.startsWith("mtllib ") -> {
+                        mtlFile = trimmedLine.substring(7).trim()
+                        Log.d(TAG, "Found material library: $mtlFile")
+                    }
+                    trimmedLine.startsWith("usemtl ") -> {
+                        val materialName = trimmedLine.substring(7).trim()
+                        currentMaterialIndex = materials.indexOfFirst { it.name == materialName }
+                        if (currentMaterialIndex == -1) {
+                            // Create a default material if not found
+                            materials.add(Material3D(materialName))
+                            currentMaterialIndex = materials.size - 1
+                        }
+                        Log.d(TAG, "Using material: $materialName (index $currentMaterialIndex)")
                     }
                 }
+            }
+            
+            // Add default material if none found
+            if (materials.isEmpty()) {
+                materials.add(Material3D("default"))
             }
             
             if (vertices.isEmpty()) {
@@ -173,8 +214,8 @@ class Model3DParser(private val context: android.content.Context) {
             
             Log.d(TAG, "Parsed OBJ: ${vertices.size} vertices, ${faces.size} faces")
             
-            // Create initial model without face data
-            val initialModel = Model3D(vertices, faces, centroid, boundingBox)
+            // Create initial model with materials
+            val initialModel = Model3D(vertices, faces, centroid, boundingBox, materials)
             
             // Analyze for facial landmarks
             Log.d(TAG, "Analyzing OBJ model for facial features...")
@@ -182,7 +223,7 @@ class Model3DParser(private val context: android.content.Context) {
             
             if (faceData != null) {
                 Log.d(TAG, "Face detected in OBJ model: ${faceData.landmarks?.size ?: 0} landmarks")
-                Model3D(vertices, faces, centroid, boundingBox, faceData)
+                Model3D(vertices, faces, centroid, boundingBox, materials, faceData)
             } else {
                 Log.w(TAG, "No face detected in OBJ model")
                 initialModel
@@ -210,7 +251,7 @@ class Model3DParser(private val context: android.content.Context) {
         }
     }
     
-    private fun parseFace(line: String): Face3D? {
+    private fun parseFace(line: String, materialIndex: Int = 0): Face3D? {
         return try {
             val parts = line.split("\\s+".toRegex())
             if (parts.size >= 4) {
@@ -218,7 +259,7 @@ class Model3DParser(private val context: android.content.Context) {
                 val v1 = parts[1].split("/")[0].toInt() - 1 // OBJ indices are 1-based
                 val v2 = parts[2].split("/")[0].toInt() - 1
                 val v3 = parts[3].split("/")[0].toInt() - 1
-                Face3D(v1, v2, v3)
+                Face3D(v1, v2, v3, materialIndex)
             } else null
         } catch (e: Exception) {
             Log.w(TAG, "Error parsing face: $line", e)

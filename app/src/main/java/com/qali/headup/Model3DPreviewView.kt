@@ -129,16 +129,24 @@ class Model3DPreviewView @JvmOverloads constructor(
         
         Log.d("Model3DPreviewView", "Model rendering: vertices=${model.vertices.size}, faces=${model.faces.size}")
         
-        // FORCE simple fallback for now to ensure something shows
-        Log.d("Model3DPreviewView", "Using simple fallback to debug black screen")
-        renderSimpleFallback(canvas, model)
+        // Try materialized rendering first for proper materials, fallback to wireframe
+        var rendered = false
+        if (useMaterialRendering) {
+            rendered = tryMaterializedRendering(canvas, model)
+            Log.d("Model3DPreviewView", "MaterializedRenderer result: $rendered")
+        }
         
-        // Also try wireframe as overlay
-        try {
-            renderBasicWireframe(canvas, model)
-            Log.d("Model3DPreviewView", "Wireframe overlay added")
-        } catch (e: Exception) {
-            Log.e("Model3DPreviewView", "Wireframe overlay failed", e)
+        if (!rendered) {
+            // Fallback to basic 3D wireframe
+            Log.d("Model3DPreviewView", "Using wireframe fallback")
+            try {
+                renderBasicWireframe(canvas, model)
+                Log.d("Model3DPreviewView", "Wireframe rendering completed")
+            } catch (e: Exception) {
+                Log.e("Model3DPreviewView", "Wireframe rendering failed", e)
+                // Ultimate fallback - just draw a simple test
+                renderSimpleFallback(canvas, model)
+            }
         }
         drawModelInfo(canvas, model)
     }
@@ -373,8 +381,10 @@ class Model3DPreviewView @JvmOverloads constructor(
             val lightVector = Vertex3D(0f, 0f, 1f) // Light coming from viewer
             val lightIntensity = maxOf(0.2f, normal.z * 0.8f + 0.3f) // Simple lighting
             
-            // Create proper material color with lighting - use bright colors for visibility
-            val baseColor = getFaceColorForWireframe(faceIndex)
+            // Get actual material color from model
+            val face = model.faces[faceIndex % model.faces.size]
+            val material = model.materials.getOrNull(face.materialIndex) ?: model.materials.firstOrNull() ?: Material3D("default")
+            val baseColor = material.diffuseColor
             val faceColor = applyLightingToColor(baseColor, lightIntensity)
             
             if (faceIndex < 5) { // Debug first few faces
