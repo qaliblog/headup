@@ -43,7 +43,7 @@ class Model3DPreviewView @JvmOverloads constructor(
     private val materializedRenderer = MaterializedModelRenderer()
     private val preciseRenderer = PreciseModelRenderer()
     private var useFilledFaces = true
-    private var useMaterialRendering = true // Enable material rendering by default
+    private var useMaterialRendering = false // Temporarily disable to test wireframe
     
     // Paint objects
     private val modelPaint = Paint().apply {
@@ -127,14 +127,26 @@ class Model3DPreviewView @JvmOverloads constructor(
             return
         }
         
+        Log.d("Model3DPreviewView", "Model rendering: vertices=${model.vertices.size}, faces=${model.faces.size}")
+        
         // Try materialized rendering first for proper materials, fallback to wireframe
-        if (useMaterialRendering && tryMaterializedRendering(canvas, model)) {
-            // Successfully rendered with materials
-            Log.d("Model3DPreviewView", "Rendered with materials for face detection")
-        } else {
+        var rendered = false
+        if (useMaterialRendering) {
+            rendered = tryMaterializedRendering(canvas, model)
+            Log.d("Model3DPreviewView", "MaterializedRenderer result: $rendered")
+        }
+        
+        if (!rendered) {
             // Fallback to basic 3D wireframe
-            renderBasicWireframe(canvas, model)
-            Log.d("Model3DPreviewView", "Fallback to wireframe rendering")
+            Log.d("Model3DPreviewView", "Using wireframe fallback")
+            try {
+                renderBasicWireframe(canvas, model)
+                Log.d("Model3DPreviewView", "Wireframe rendering completed")
+            } catch (e: Exception) {
+                Log.e("Model3DPreviewView", "Wireframe rendering failed", e)
+                // Ultimate fallback - just draw a simple test
+                renderSimpleFallback(canvas, model)
+            }
         }
         drawModelInfo(canvas, model)
     }
@@ -144,20 +156,31 @@ class Model3DPreviewView @JvmOverloads constructor(
      */
     private fun tryMaterializedRendering(canvas: Canvas, model: Model3D): Boolean {
         return try {
+            Log.d("Model3DPreviewView", "Setting up MaterializedModelRenderer...")
+            
             // Set up the materialized renderer with current model and adjustments
-            materializedRenderer.setModel(model)
-            materializedRenderer.setManualAdjustments(manualAdjustments ?: ManualAdjustmentData())
+            val modelSet = materializedRenderer.setModel(model)
+            Log.d("Model3DPreviewView", "Model set in MaterializedRenderer: $modelSet")
+            
+            val adjustments = manualAdjustments ?: ManualAdjustmentData()
+            materializedRenderer.setManualAdjustments(adjustments)
+            Log.d("Model3DPreviewView", "Adjustments set: scale=${adjustments.scale}")
+            
+            val baseScale = calculateBaseScale(model)
             materializedRenderer.updateScreenParameters(
                 width, height, 
-                calculateBaseScale(model),
+                baseScale,
                 (manualAdjustments?.offsetX ?: 0f) * 100f,
                 (manualAdjustments?.offsetY ?: 0f) * 100f
             )
+            Log.d("Model3DPreviewView", "Screen params: ${width}x${height}, scale=$baseScale")
             
             // Attempt to render with materials
-            materializedRenderer.render(canvas, modelPaint)
+            val renderResult = materializedRenderer.render(canvas, modelPaint)
+            Log.d("Model3DPreviewView", "MaterializedRenderer.render() returned: $renderResult")
+            renderResult
         } catch (e: Exception) {
-            Log.w("Model3DPreviewView", "MaterializedModelRenderer failed: ${e.message}")
+            Log.w("Model3DPreviewView", "MaterializedModelRenderer failed: ${e.message}", e)
             false
         }
     }
@@ -236,6 +259,41 @@ class Model3DPreviewView @JvmOverloads constructor(
         return matrix
     }
     
+    /**
+     * Simple fallback rendering for debugging
+     */
+    private fun renderSimpleFallback(canvas: Canvas, model: Model3D) {
+        Log.d("Model3DPreviewView", "Using simple fallback rendering")
+        
+        // Draw a simple representation to verify model data is there
+        val bounds = calculateModelBounds(model)
+        val centerX = width / 2f
+        val centerY = height / 2f
+        val scale = minOf(width, height) * 0.2f
+        
+        // Draw model bounds as a rectangle
+        val rectPaint = Paint().apply {
+            color = Color.RED
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+        
+        canvas.drawRect(
+            centerX - scale / 2,
+            centerY - scale / 2,
+            centerX + scale / 2,
+            centerY + scale / 2,
+            rectPaint
+        )
+        
+        // Draw model info
+        val textPaint = Paint().apply {
+            color = Color.RED
+            textSize = 24f
+        }
+        canvas.drawText("Model: ${model.vertices.size}v, ${model.faces.size}f", 50f, 100f, textPaint)
+    }
+
     /**
      * Render true 3D model without any 2D flattening
      */
